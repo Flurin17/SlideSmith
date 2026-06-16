@@ -1,10 +1,16 @@
-import { useEffect, useState } from 'react';
-import { Check, X, Loader2, KeyRound, Trash2, Info } from 'lucide-react';
-import type { AppConfig, Project, SocialAccount, ModelOption } from '../types';
+import { useEffect, useState, type ChangeEvent } from 'react';
+import { Check, X, Loader2, KeyRound, Trash2, Info, Upload, BrainCircuit, RefreshCw } from 'lucide-react';
+import type { AppConfig, Project, SocialAccount, ModelOption, ImageTranscriptionStatus } from '../types';
 import { ViewHeader } from '../components/ViewHeader';
 import { Button } from '../components/Button';
-import { testKeys, getModels } from '../lib/api';
+import { testKeys, getModels, getImageTranscriptionStatus, startImageTranscriptions } from '../lib/api';
 import { PackPicker } from '../components/PackPicker';
+import { SlidePreview } from '../components/SlidePreview';
+import {
+  BRAND_FONT_LABELS,
+  BRAND_LOGO_POSITION_LABELS,
+  normalizeBrandKit,
+} from '../lib/brandKit';
 
 interface SettingsViewProps {
   config: AppConfig;
@@ -20,6 +26,8 @@ interface SettingsViewProps {
     name?: string;
     defaults?: Project['defaults'];
     imagePacks?: string[];
+    brandKit?: Project['brandKit'];
+    aiCreativeControl?: boolean;
   }) => Promise<void>;
   onDeleteProject: () => void;
   onReloadAccounts: () => void;
@@ -59,6 +67,10 @@ export function SettingsView({
   const [mode, setMode] = useState(project.defaults.mode);
   const [selected, setSelected] = useState<number[]>(project.defaults.socialAccountIds);
   const [imagePacks, setImagePacks] = useState<string[]>(project.imagePacks);
+  const [brandKit, setBrandKit] = useState(() => normalizeBrandKit(project.brandKit));
+  const [aiCreativeControl, setAiCreativeControl] = useState(project.aiCreativeControl);
+  const [transcriptionStatus, setTranscriptionStatus] = useState<ImageTranscriptionStatus | null>(null);
+  const [transcriptionBusy, setTranscriptionBusy] = useState(false);
   const [models, setModels] = useState<ModelOption[]>([]);
   const [modelFilter, setModelFilter] = useState('');
   const [saving, setSaving] = useState(false);
@@ -77,6 +89,38 @@ export function SettingsView({
     getModels().then(setModels).catch(() => setModels([]));
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadStatus = async () => {
+      try {
+        const next = await getImageTranscriptionStatus();
+        if (!cancelled) setTranscriptionStatus(next);
+      } catch {
+        if (!cancelled) setTranscriptionStatus(null);
+      }
+    };
+    void loadStatus();
+    const id = window.setInterval(() => {
+      if (aiCreativeControl || transcriptionStatus?.running) void loadStatus();
+    }, 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [aiCreativeControl, transcriptionStatus?.running]);
+
+  const startTranscriptions = async () => {
+    setTranscriptionBusy(true);
+    setSaveError(null);
+    try {
+      setTranscriptionStatus(await startImageTranscriptions());
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTranscriptionBusy(false);
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     setSaved(false);
@@ -91,7 +135,10 @@ export function SettingsView({
         name,
         defaults: { socialAccountIds: selected, mode },
         imagePacks,
+        brandKit,
+        aiCreativeControl,
       });
+      if (aiCreativeControl) await startTranscriptions();
       onReloadAccounts();
       setSaved(true);
     } catch (e) {
@@ -115,6 +162,31 @@ export function SettingsView({
 
   const toggleAccount = (id: number) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const patchBrandKit = (patch: Partial<Project['brandKit']>) => {
+    setBrandKit((prev) => normalizeBrandKit({ ...prev, ...patch }));
+    setSaved(false);
+  };
+
+  const uploadLogo = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setSaveError('Logo must be an image file.');
+      return;
+    }
+    if (file.size > 1_500_000) {
+      setSaveError('Logo image must be under 1.5 MB.');
+      return;
+    }
+
+    setSaveError(null);
+    const reader = new FileReader();
+    reader.onload = () => patchBrandKit({ logoDataUrl: String(reader.result || '') });
+    reader.onerror = () => setSaveError('Could not read logo image.');
+    reader.readAsDataURL(file);
+  };
 
   const filtered = modelFilter
     ? models.filter(
@@ -146,6 +218,173 @@ export function SettingsView({
                 Delete this project
               </Button>
             )}
+          </Section>
+
+          {/* Brand kit (per project) */}
+          <Section
+            title="Brand kit"
+            description="Applied to this project's slide previews and scheduled PNG exports."
+          >
+            <div className="grid sm:grid-cols-[180px_1fr] gap-4 items-start">
+              <div className="w-[150px] mx-auto sm:mx-0">
+                <SlidePreview
+                  slide={{ id: 'brand-preview', text: 'MAKE IT EASY TO REMEMBER', bgFrom: '#0f172a', bgTo: '#1e293b' }}
+                  brandKit={brandKit}
+                />
+              </div>
+              <div className="space-y-4 min-w-0">
+                <Field label="Logo">
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-lg border border-line bg-surface flex items-center justify-center overflow-hidden">
+                      {brandKit.logoDataUrl ? (
+                        <img src={brandKit.logoDataUrl} alt="" className="w-full h-full object-contain p-1.5" />
+                      ) : (
+                        <span className="text-[10px] text-ink-6 uppercase tracking-wider">None</span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <label className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg border border-line bg-card text-[13px] font-medium text-ink hover:border-line-2 cursor-pointer">
+                        <Upload size={13} />
+                        Upload
+                        <input type="file" accept="image/*" onChange={uploadLogo} className="hidden" />
+                      </label>
+                      {brandKit.logoDataUrl && (
+                        <Button variant="ghost" onClick={() => patchBrandKit({ logoDataUrl: '' })}>
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </Field>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <ColorField
+                    label="Primary"
+                    value={brandKit.primaryColor}
+                    onChange={(primaryColor) => patchBrandKit({ primaryColor })}
+                  />
+                  <ColorField
+                    label="Accent"
+                    value={brandKit.accentColor}
+                    onChange={(accentColor) => patchBrandKit({ accentColor })}
+                  />
+                  <ColorField
+                    label="Background"
+                    value={brandKit.backgroundColor}
+                    onChange={(backgroundColor) => patchBrandKit({ backgroundColor })}
+                  />
+                  <ColorField
+                    label="Text"
+                    value={brandKit.textColor}
+                    onChange={(textColor) => patchBrandKit({ textColor })}
+                  />
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <Field label="Caption style">
+                    <select
+                      value={brandKit.fontStyle}
+                      onChange={(e) => patchBrandKit({ fontStyle: e.target.value as Project['brandKit']['fontStyle'] })}
+                      className={inputClass}
+                    >
+                      {Object.entries(BRAND_FONT_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Logo position">
+                    <select
+                      value={brandKit.logoPosition}
+                      onChange={(e) => patchBrandKit({ logoPosition: e.target.value as Project['brandKit']['logoPosition'] })}
+                      className={inputClass}
+                      disabled={!brandKit.logoDataUrl}
+                    >
+                      {Object.entries(BRAND_LOGO_POSITION_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+
+                <Field label={`Overlay strength ${Math.round(brandKit.overlayOpacity * 100)}%`}>
+                  <input
+                    type="range"
+                    min={0}
+                    max={85}
+                    value={Math.round(brandKit.overlayOpacity * 100)}
+                    onChange={(e) => patchBrandKit({ overlayOpacity: Number(e.target.value) / 100 })}
+                    className="w-full accent-ink"
+                  />
+                </Field>
+              </div>
+            </div>
+          </Section>
+
+          <Section
+            title="AI creative control"
+            description="Let the selected AI model choose caption style and match described library images to each slide."
+          >
+            <div className="rounded-lg border border-line bg-card p-4 space-y-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+                    <BrainCircuit size={15} />
+                    AI chooses fonts and backgrounds
+                  </div>
+                  <p className="text-[12px] text-ink-5 mt-1 leading-snug">
+                    When enabled, Slidesmith transcribes missing library images in parallel and sends those descriptions to generation so the model can pick the right image and font style.
+                  </p>
+                </div>
+                <label className="shrink-0 inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={aiCreativeControl}
+                    onChange={(e) => {
+                      setAiCreativeControl(e.target.checked);
+                      setSaved(false);
+                    }}
+                    className="sr-only peer"
+                  />
+                  <span className="w-10 h-6 rounded-full bg-raised border border-line relative transition-colors peer-checked:bg-ink after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:rounded-full after:bg-card after:border after:border-line after:transition-transform peer-checked:after:translate-x-4" />
+                </label>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-[12px] text-ink-5">
+                <span>
+                  {transcriptionStatus
+                    ? `${transcriptionStatus.described} / ${transcriptionStatus.total} images described`
+                    : 'Image description status unavailable'}
+                </span>
+                {transcriptionStatus?.running && (
+                  <span className="inline-flex items-center gap-1 text-amber-600">
+                    <Loader2 size={12} className="animate-spin" />
+                    processing {transcriptionStatus.done + transcriptionStatus.failed}
+                  </span>
+                )}
+                {transcriptionStatus?.lastError && (
+                  <span className="text-red-600 truncate max-w-full">{transcriptionStatus.lastError}</span>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={transcriptionBusy || transcriptionStatus?.running ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                  onClick={startTranscriptions}
+                  disabled={transcriptionBusy || transcriptionStatus?.running || !aiCreativeControl}
+                >
+                  Transcribe missing images
+                </Button>
+                {!aiCreativeControl && (
+                  <span className="text-[11px] text-ink-6 self-center">Enable and save to start automatically.</span>
+                )}
+              </div>
+            </div>
           </Section>
 
           {/* Keys (global) */}
@@ -372,5 +611,25 @@ function Field({ label, hint, children }: { label: string; hint?: React.ReactNod
       {children}
       {hint && <p className="text-[11px] text-ink-6 mt-1">{hint}</p>}
     </div>
+  );
+}
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <Field label={label}>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-9 w-11 rounded-lg border border-line bg-card p-1 cursor-pointer"
+        />
+        <input
+          value={value}
+          readOnly
+          className={`${inputClass} font-mono uppercase`}
+        />
+      </div>
+    </Field>
   );
 }

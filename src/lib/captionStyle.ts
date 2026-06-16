@@ -1,4 +1,6 @@
 import type { CSSProperties } from 'react';
+import type { BrandKit } from '../types';
+import { captionFontStack, captionFontWeight, captionStrokeColor, DEFAULT_BRAND_KIT, normalizeBrandKit } from './brandKit';
 
 // ─── Single source of truth for caption styling ─────────────────────────────
 // Both the on-screen editor preview (SlidePreview.tsx, plain CSS) AND the
@@ -28,14 +30,16 @@ export const pct = (p: number) => p / 100;
 // ─── CSS for the preview overlay text ───────────────────────────────────────
 // The slide container MUST carry SLIDE_CONTAINER_STYLE (containerType: 'size')
 // so `cqh` resolves to a percent of the slide's height, not the viewport.
-export function captionTextStyle(): CSSProperties {
+export function captionTextStyle(brandKit?: BrandKit): CSSProperties {
+  const kit = normalizeBrandKit(brandKit || DEFAULT_BRAND_KIT);
   const strokePct = FONT_SIZE_PCT * STROKE_RATIO;
   return {
     fontSize: `${FONT_SIZE_PCT}cqh`,
-    WebkitTextStroke: `${strokePct}cqh black`,
+    WebkitTextStroke: `${strokePct}cqh ${captionStrokeColor(kit.textColor)}`,
     paintOrder: 'stroke fill', // stroke under fill — clean outline, no eaten glyphs
-    fontWeight: 800,
-    color: '#ffffff',
+    fontWeight: captionFontWeight(kit.fontStyle),
+    fontFamily: captionFontStack(kit.fontStyle),
+    color: kit.textColor,
     lineHeight: LINE_HEIGHT,
     textAlign: 'center',
     whiteSpace: 'pre-wrap',

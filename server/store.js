@@ -20,9 +20,37 @@ const DEFAULT_BRAIN = {
   appDescription: '',
   audience: '',
   linkUrl: '',
+  contentPillars: [],
   styleMemory: '',
 }
 const DEFAULT_DEFAULTS = { socialAccountIds: [], mode: 'draft' }
+const DEFAULT_BRAND_KIT = {
+  primaryColor: '#0a0a0a',
+  accentColor: '#f97316',
+  backgroundColor: '#111827',
+  textColor: '#ffffff',
+  overlayOpacity: 0.45,
+  logoDataUrl: '',
+  logoPosition: 'bottom-right',
+  fontStyle: 'bold',
+}
+const DEFAULT_GENERATION_PRESETS = [
+  {
+    id: 'preset-contrarian',
+    name: 'Contrarian take',
+    direction: 'Challenge a common belief in this niche, then give a sharper replacement rule with concrete examples.',
+  },
+  {
+    id: 'preset-beginner',
+    name: 'Beginner-friendly',
+    direction: 'Explain one useful idea for a smart beginner with simple steps, zero jargon, and a clear payoff.',
+  },
+  {
+    id: 'preset-founder-pov',
+    name: 'Founder POV',
+    direction: 'Write from a first-person operator perspective with a lesson, mistake, or behind-the-scenes decision.',
+  },
+]
 
 function ensureDir() {
   if (!existsSync(DIR)) mkdirSync(DIR, { recursive: true })
@@ -41,6 +69,19 @@ function writeJson(path, value) {
 function newId(prefix) {
   return `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e6)}`
 }
+function cleanText(value, max = 500) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+function normalizeGenerationPresets(value) {
+  const source = Array.isArray(value) ? value : DEFAULT_GENERATION_PRESETS
+  return source
+    .map((preset, i) => ({
+      id: cleanText(preset?.id, 80) || `preset-${i + 1}`,
+      name: cleanText(preset?.name, 80),
+      direction: cleanText(preset?.direction, 700),
+    }))
+    .filter((preset) => preset.name || preset.direction)
+}
 function makeProject(name, brain, defaults, imagePacks) {
   return {
     id: newId('p'),
@@ -50,6 +91,9 @@ function makeProject(name, brain, defaults, imagePacks) {
     // Which background packs generation draws from. Defaults to all bundled
     // packs so a fresh project generates with images out of the box. Empty = gradients.
     imagePacks: imagePacks ?? bundledPackNames(),
+    brandKit: { ...DEFAULT_BRAND_KIT },
+    generationPresets: normalizeGenerationPresets(),
+    aiCreativeControl: false,
   }
 }
 
@@ -64,6 +108,9 @@ export function getConfig() {
         brain: { ...DEFAULT_BRAIN, ...p.brain },
         defaults: { ...DEFAULT_DEFAULTS, ...p.defaults },
         imagePacks: p.imagePacks ?? bundledPackNames(),
+        brandKit: { ...DEFAULT_BRAND_KIT, ...p.brandKit },
+        generationPresets: normalizeGenerationPresets(p.generationPresets),
+        aiCreativeControl: !!p.aiCreativeControl,
       }))
     : null
 
@@ -94,7 +141,11 @@ export function getConfig() {
     !Array.isArray(s.projects) ||
     s.projects.length !== projects.length ||
     s.activeProjectId !== activeProjectId ||
-    s.projects.some((p, i) => p.id !== projects[i].id)
+    s.projects.some((p, i) =>
+      p.id !== projects[i].id ||
+      !Array.isArray(p.generationPresets) ||
+      p.aiCreativeControl === undefined
+    )
   if (needsPersist) writeJson(CONFIG_PATH, cfg)
 
   return cfg
@@ -138,6 +189,9 @@ export function updateProject(id, patch) {
           brain: patch.brain ? { ...p.brain, ...patch.brain } : p.brain,
           defaults: patch.defaults ? { ...p.defaults, ...patch.defaults } : p.defaults,
           imagePacks: patch.imagePacks ?? p.imagePacks,
+          brandKit: patch.brandKit ? { ...p.brandKit, ...patch.brandKit } : p.brandKit,
+          generationPresets: patch.generationPresets !== undefined ? normalizeGenerationPresets(patch.generationPresets) : p.generationPresets,
+          aiCreativeControl: patch.aiCreativeControl !== undefined ? !!patch.aiCreativeControl : p.aiCreativeControl,
         }
       : p
   )

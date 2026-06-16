@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, Loader2, ChevronLeft, ChevronRight, Trash2, Shuffle, Image as ImageIcon, Link2 } from 'lucide-react';
-import type { Slideshow, Slide, LibraryImage, LinkStickerPosition } from '../types';
+import { X, Loader2, ChevronLeft, ChevronRight, Trash2, Shuffle, Image as ImageIcon, Link2, Wand2 } from 'lucide-react';
+import type { BrandKit, Slideshow, Slide, LibraryImage, LinkStickerPosition } from '../types';
 import { Button } from './Button';
 import { SlidePreview } from './SlidePreview';
 import { getLibrary } from '../lib/api';
@@ -8,14 +8,31 @@ import { LINK_STICKER_POSITIONS, LINK_STICKER_POSITION_LABELS } from '../lib/lin
 
 interface SlideshowEditorModalProps {
   slideshow: Slideshow;
+  brandKit?: BrandKit;
+  canUseAI?: boolean;
   defaultLinkText?: string;
+  onAiEdit?: (payload: {
+    action: 'shorten' | 'sharpen' | 'rewrite' | 'cta';
+    slideIndex: number;
+    slides: Slide[];
+    caption: string;
+    hashtags: string[];
+  }) => Promise<{ slides: Slide[]; caption?: string; hashtags?: string[] }>;
   onClose: () => void;
   onSave: (patch: { slides: Slide[]; caption: string; hashtags: string[] }) => Promise<void>;
 }
 
 type Tab = 'post' | 'slide';
 
-export function SlideshowEditorModal({ slideshow, defaultLinkText = '', onClose, onSave }: SlideshowEditorModalProps) {
+export function SlideshowEditorModal({
+  slideshow,
+  brandKit,
+  canUseAI = false,
+  defaultLinkText = '',
+  onAiEdit,
+  onClose,
+  onSave,
+}: SlideshowEditorModalProps) {
   const [slides, setSlides] = useState<Slide[]>(slideshow.slides.map((s) => ({ ...s })));
   const [caption, setCaption] = useState(slideshow.caption);
   const [hashtags, setHashtags] = useState(slideshow.hashtags.join(' '));
@@ -24,6 +41,8 @@ export function SlideshowEditorModal({ slideshow, defaultLinkText = '', onClose,
   const [library, setLibrary] = useState<LibraryImage[] | null>(null);
   const [pack, setPack] = useState('all');
   const [saving, setSaving] = useState(false);
+  const [aiBusy, setAiBusy] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     getLibrary().then(setLibrary).catch(() => setLibrary([]));
@@ -72,6 +91,29 @@ export function SlideshowEditorModal({ slideshow, defaultLinkText = '', onClose,
     setIndex((i) => Math.max(0, Math.min(i, total - 2)));
   };
 
+  const runAiEdit = async (action: 'shorten' | 'sharpen' | 'rewrite' | 'cta') => {
+    if (!onAiEdit || !canUseAI) return;
+    setAiBusy(action);
+    setAiError(null);
+    try {
+      const next = await onAiEdit({
+        action,
+        slideIndex: index,
+        slides,
+        caption,
+        hashtags: hashtags.split(/[\s,]+/).map((t) => t.replace(/^#/, '')).filter(Boolean),
+      });
+      setSlides(next.slides.map((s) => ({ ...s })));
+      if (next.caption !== undefined) setCaption(next.caption);
+      if (next.hashtags) setHashtags(next.hashtags.join(' '));
+      setIndex((i) => Math.min(i, Math.max(0, next.slides.length - 1)));
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     try {
@@ -94,7 +136,7 @@ export function SlideshowEditorModal({ slideshow, defaultLinkText = '', onClose,
         {/* Preview */}
         <div className="sm:flex-1 bg-surface flex flex-col items-center justify-center p-6 gap-3 min-w-0">
           <div className="w-[200px] max-w-full">
-            <SlidePreview slide={current} />
+            <SlidePreview slide={current} brandKit={brandKit} />
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -187,6 +229,15 @@ export function SlideshowEditorModal({ slideshow, defaultLinkText = '', onClose,
                     rows={3}
                     className="w-full bg-card border border-line rounded-lg px-3 py-2 text-[13px] text-ink resize-none outline-none focus:border-ink-7 focus:ring-2 focus:ring-ink/10"
                   />
+                  {canUseAI && onAiEdit && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <AiButton busy={aiBusy} action="shorten" onClick={runAiEdit}>Shorten</AiButton>
+                      <AiButton busy={aiBusy} action="sharpen" onClick={runAiEdit}>Sharpen hook</AiButton>
+                      <AiButton busy={aiBusy} action="rewrite" onClick={runAiEdit}>Rewrite voice</AiButton>
+                      <AiButton busy={aiBusy} action="cta" onClick={runAiEdit}>Add CTA</AiButton>
+                    </div>
+                  )}
+                  {aiError && <p className="text-[11px] text-red-600 mt-2">{aiError}</p>}
                 </div>
 
                 <div className="rounded-lg border border-line bg-surface p-3 space-y-3">
@@ -296,5 +347,30 @@ export function SlideshowEditorModal({ slideshow, defaultLinkText = '', onClose,
         </div>
       </div>
     </div>
+  );
+}
+
+function AiButton({
+  action,
+  busy,
+  children,
+  onClick,
+}: {
+  action: 'shorten' | 'sharpen' | 'rewrite' | 'cta';
+  busy: string | null;
+  children: React.ReactNode;
+  onClick: (action: 'shorten' | 'sharpen' | 'rewrite' | 'cta') => void;
+}) {
+  const active = busy === action;
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      icon={active ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+      onClick={() => onClick(action)}
+      disabled={busy !== null}
+    >
+      {children}
+    </Button>
   );
 }

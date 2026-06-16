@@ -29,7 +29,7 @@ export async function validateAzureOpenAI({ apiKey, endpoint }) {
   return true
 }
 
-export async function chatJSON({ apiKey, endpoint, model, prompt }) {
+export async function chatJSON({ apiKey, endpoint, model, prompt, messages }) {
   const baseUrl = normalizeBaseUrl(endpoint)
   if (!apiKey) throw new Error('Missing Azure OpenAI API key. Add it in Settings.')
   if (!baseUrl) throw new Error('Missing Azure OpenAI endpoint. Add it in Settings.')
@@ -40,6 +40,7 @@ export async function chatJSON({ apiKey, endpoint, model, prompt }) {
     headers: { 'api-key': apiKey },
     model,
     prompt,
+    messages,
     tokenLimitParam: 'max_completion_tokens',
   })
 }

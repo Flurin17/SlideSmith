@@ -13,6 +13,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIR = process.env.SLIDESMITH_DIR || join(homedir(), '.slidesmith')
 const MEDIA_DIR = join(DIR, 'library')
 const INDEX_PATH = join(DIR, 'library.json')
+const DESCRIPTIONS_PATH = join(DIR, 'library-descriptions.json')
 const BUNDLED_MANIFEST = join(__dirname, '..', 'public', 'library', 'manifest.json')
 
 function ensure() {
@@ -45,6 +46,32 @@ function scrapedIndex() {
   return readJson(INDEX_PATH, [])
 }
 
+function descriptionsIndex() {
+  const raw = readJson(DESCRIPTIONS_PATH, {})
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+}
+
+function writeDescriptions(value) {
+  ensure()
+  writeFileSync(DESCRIPTIONS_PATH, JSON.stringify(value, null, 2))
+}
+
+export function getImageDescriptions() {
+  return descriptionsIndex()
+}
+
+export function saveImageDescription(id, patch) {
+  const index = descriptionsIndex()
+  index[id] = {
+    ...(index[id] || {}),
+    ...patch,
+    id,
+    updatedAt: new Date().toISOString(),
+  }
+  writeDescriptions(index)
+  return index[id]
+}
+
 // Recover image files on disk that aren't in the index (e.g. if the index was
 // emptied or drifted). Re-indexes them with stable ids matching the original
 // scheme so nothing is silently orphaned.
@@ -63,6 +90,7 @@ function reconcileOrphans() {
 }
 
 export function listLibrary() {
+  const descriptions = descriptionsIndex()
   // Only list scraped images whose files actually exist on disk — avoids broken
   // thumbnails / 404s if the index and files ever drift apart. Reconcile first
   // so any orphaned files on disk are picked back up.
@@ -73,9 +101,26 @@ export function listLibrary() {
       url: `/api/library/img/${encodeURIComponent(s.id)}`,
       pack: s.pack || 'Scraped',
       source: 'scraped',
+      description: descriptions[s.id]?.description,
     }))
   // Scraped first (newest), then the bundled packs.
-  return [...scraped, ...bundled()]
+  return [...scraped, ...bundled().map((img) => ({ ...img, description: descriptions[img.id]?.description }))]
+}
+
+export function imageDescriptionStats() {
+  const images = listLibrary()
+  const descriptions = descriptionsIndex()
+  const described = images.filter((img) => descriptions[img.id]?.description).length
+  return {
+    total: images.length,
+    described,
+    pending: Math.max(0, images.length - described),
+  }
+}
+
+export function imagesMissingDescriptions() {
+  const descriptions = descriptionsIndex()
+  return listLibrary().filter((img) => !descriptions[img.id]?.description)
 }
 
 // Group the library into packs with a few cover thumbnails each (for the
@@ -95,6 +140,16 @@ export function getScrapedFile(id) {
   const rec = scrapedIndex().find((s) => s.id === id)
   if (!rec) return null
   const p = join(MEDIA_DIR, rec.file)
+  return existsSync(p) ? p : null
+}
+
+export function getLibraryImageFile(id) {
+  const scraped = getScrapedFile(id)
+  if (scraped) return scraped
+  const rec = bundled().find((img) => img.id === id)
+  if (!rec) return null
+  const rel = rec.url.replace(/^\/library\//, '')
+  const p = join(__dirname, '..', 'public', 'library', rel)
   return existsSync(p) ? p : null
 }
 

@@ -1,5 +1,5 @@
-import { Check, X, Sparkles, RefreshCw, Loader2, Pencil } from 'lucide-react';
-import type { Slideshow } from '../types';
+import { Check, X, Sparkles, RefreshCw, Loader2, Pencil, ThumbsUp, AlertTriangle, Bookmark, Trash2 } from 'lucide-react';
+import type { BrandKit, QueueFeedbackAction, Slideshow } from '../types';
 import { ViewHeader } from '../components/ViewHeader';
 import { SlidePreview } from '../components/SlidePreview';
 import { Button } from '../components/Button';
@@ -18,6 +18,10 @@ interface QueueViewProps {
   onSelectAll: () => void;
   onClearSelection: () => void;
   onBulkSchedule: () => void;
+  onBulkDelete: () => void;
+  brandKit?: BrandKit;
+  note?: string | null;
+  onFeedback: (action: QueueFeedbackAction, slideshow: Slideshow) => void;
 }
 
 export function QueueView({
@@ -33,6 +37,10 @@ export function QueueView({
   onSelectAll,
   onClearSelection,
   onBulkSchedule,
+  onBulkDelete,
+  brandKit,
+  note,
+  onFeedback,
 }: QueueViewProps) {
   const selectedCount = selectedIds.length;
   return (
@@ -47,6 +55,9 @@ export function QueueView({
                 <span className="text-[12px] text-ink-5">{selectedCount} selected</span>
                 <Button variant="primary" icon={<Check size={13} />} onClick={onBulkSchedule}>
                   Schedule {selectedCount}
+                </Button>
+                <Button variant="danger-ghost" icon={<Trash2 size={13} />} onClick={onBulkDelete}>
+                  Delete
                 </Button>
                 <Button variant="ghost" onClick={onClearSelection}>Clear</Button>
               </>
@@ -66,6 +77,12 @@ export function QueueView({
           </>
         }
       />
+
+      {note && (
+        <div className="mx-8 mt-4 rounded-lg border border-line bg-card px-3 py-2 text-[12px] text-ink-4">
+          {note}
+        </div>
+      )}
 
       {slideshows.length === 0 ? (
         <div className="flex-1 flex items-center justify-center p-8">
@@ -107,6 +124,8 @@ export function QueueView({
                 onApprove={() => onApprove(s.id)}
                 onReject={() => onReject(s.id)}
                 onEdit={() => onEdit(s.id)}
+                brandKit={brandKit}
+                onFeedback={(action) => onFeedback(action, s)}
               />
             ))}
           </div>
@@ -123,9 +142,11 @@ interface CardProps {
   onApprove: () => void;
   onReject: () => void;
   onEdit: () => void;
+  brandKit?: BrandKit;
+  onFeedback: (action: QueueFeedbackAction) => void;
 }
 
-function SlideshowCard({ slideshow, selected, onToggleSelect, onApprove, onReject, onEdit }: CardProps) {
+function SlideshowCard({ slideshow, selected, onToggleSelect, onApprove, onReject, onEdit, brandKit, onFeedback }: CardProps) {
   return (
     <div className={`bg-card border rounded-xl overflow-hidden animate-fadeIn transition-colors ${selected ? 'border-ink ring-1 ring-ink' : 'border-line'}`}>
       {/* Slide strip */}
@@ -135,7 +156,7 @@ function SlideshowCard({ slideshow, selected, onToggleSelect, onApprove, onRejec
         </label>
         <div className="grid grid-cols-6 gap-1.5">
           {slideshow.slides.map((slide) => (
-            <SlidePreview key={slide.id} slide={slide} />
+            <SlidePreview key={slide.id} slide={slide} brandKit={brandKit} />
           ))}
         </div>
       </div>
@@ -164,8 +185,36 @@ function SlideshowCard({ slideshow, selected, onToggleSelect, onApprove, onRejec
           ))}
         </div>
 
+        {(slideshow.generationContext?.pillarName || slideshow.generationContext?.presetName) && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {slideshow.generationContext.pillarName && (
+              <span className="text-[10px] text-ink-5 px-1.5 py-0.5 rounded bg-surface border border-line">
+                {slideshow.generationContext.pillarName}
+              </span>
+            )}
+            {slideshow.generationContext.presetName && (
+              <span className="text-[10px] text-ink-5 px-1.5 py-0.5 rounded bg-surface border border-line">
+                {slideshow.generationContext.presetName}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Feedback */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-4 pt-3 border-t border-line">
+          <Button size="sm" variant="ghost" icon={<ThumbsUp size={12} />} onClick={() => onFeedback('more-like-this')}>
+            More like this
+          </Button>
+          <Button size="sm" variant="ghost" icon={<AlertTriangle size={12} />} onClick={() => onFeedback('too-generic')}>
+            Too generic
+          </Button>
+          <Button size="sm" variant="ghost" icon={<Bookmark size={12} />} onClick={() => onFeedback('save-as-template')}>
+            Save template
+          </Button>
+        </div>
+
         {/* Actions */}
-        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-line">
+        <div className="flex items-center gap-2 mt-3">
           <Button variant="secondary" icon={<Pencil size={13} />} onClick={onEdit}>
             Edit
           </Button>

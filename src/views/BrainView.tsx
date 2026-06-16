@@ -1,9 +1,12 @@
-import type { BrainState } from '../types';
+import { Plus, Trash2 } from 'lucide-react';
+import type { BrainState, GenerationPreset, Project } from '../types';
 import { ViewHeader } from '../components/ViewHeader';
+import { Button } from '../components/Button';
 
 interface BrainViewProps {
-  brain: BrainState;
-  onChange: (brain: BrainState) => void;
+  project: Project;
+  onBrainChange: (brain: BrainState) => void;
+  onGenerationPresetsChange: (presets: GenerationPreset[]) => void;
 }
 
 const inputClass =
@@ -16,7 +19,35 @@ const textareaClass =
   'placeholder:text-ink-6 outline-none transition-colors resize-none ' +
   'focus:border-ink-7 focus:ring-2 focus:ring-ink/10';
 
-export function BrainView({ brain, onChange }: BrainViewProps) {
+function newId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+}
+
+export function BrainView({ project, onBrainChange, onGenerationPresetsChange }: BrainViewProps) {
+  const brain = project.brain;
+  const pillars = brain.contentPillars || [];
+  const presets = project.generationPresets || [];
+  const updatePillar = (index: number, value: string) => {
+    const next = pillars.map((pillar, i) => (i === index ? value : pillar));
+    onBrainChange({ ...brain, contentPillars: next });
+  };
+  const addPillar = () => onBrainChange({ ...brain, contentPillars: [...pillars, ''] });
+  const removePillar = (index: number) =>
+    onBrainChange({ ...brain, contentPillars: pillars.filter((_, i) => i !== index) });
+  const updatePreset = (id: string, patch: Partial<GenerationPreset>) =>
+    onGenerationPresetsChange(presets.map((preset) => (preset.id === id ? { ...preset, ...patch } : preset)));
+  const addPreset = () =>
+    onGenerationPresetsChange([
+      ...presets,
+      {
+        id: newId('preset'),
+        name: '',
+        direction: '',
+      },
+    ]);
+  const removePreset = (id: string) =>
+    onGenerationPresetsChange(presets.filter((preset) => preset.id !== id));
+
   return (
     <>
       <ViewHeader
@@ -32,14 +63,14 @@ export function BrainView({ brain, onChange }: BrainViewProps) {
               <Field label="Niche">
                 <input
                   value={brain.niche}
-                  onChange={(e) => onChange({ ...brain, niche: e.target.value })}
+                  onChange={(e) => onBrainChange({ ...brain, niche: e.target.value })}
                   className={inputClass}
                 />
               </Field>
               <Field label="App name">
                 <input
                   value={brain.appName}
-                  onChange={(e) => onChange({ ...brain, appName: e.target.value })}
+                  onChange={(e) => onBrainChange({ ...brain, appName: e.target.value })}
                   className={inputClass}
                 />
               </Field>
@@ -47,7 +78,7 @@ export function BrainView({ brain, onChange }: BrainViewProps) {
             <Field label="App description">
               <textarea
                 value={brain.appDescription}
-                onChange={(e) => onChange({ ...brain, appDescription: e.target.value })}
+                onChange={(e) => onBrainChange({ ...brain, appDescription: e.target.value })}
                 rows={2}
                 className={textareaClass}
               />
@@ -55,7 +86,7 @@ export function BrainView({ brain, onChange }: BrainViewProps) {
             <Field label="Audience">
               <input
                 value={brain.audience}
-                onChange={(e) => onChange({ ...brain, audience: e.target.value })}
+                onChange={(e) => onBrainChange({ ...brain, audience: e.target.value })}
                 className={inputClass}
               />
             </Field>
@@ -68,11 +99,78 @@ export function BrainView({ brain, onChange }: BrainViewProps) {
             <Field label="Link or domain">
               <input
                 value={brain.linkUrl}
-                onChange={(e) => onChange({ ...brain, linkUrl: e.target.value })}
+                onChange={(e) => onBrainChange({ ...brain, linkUrl: e.target.value })}
                 placeholder="https://yourdomain.com"
                 className={inputClass}
               />
             </Field>
+          </Section>
+
+          <Section
+            title="Content pillars"
+            description="Recurring themes the Generate modal can target for this project."
+          >
+            <div className="space-y-2">
+              {pillars.map((pillar, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <input
+                    value={pillar}
+                    onChange={(e) => updatePillar(index, e.target.value)}
+                    placeholder="e.g. retention mistakes, founder lessons, customer proof"
+                    className={inputClass}
+                  />
+                  <Button
+                    variant="ghost"
+                    icon={<Trash2 size={12} />}
+                    onClick={() => removePillar(index)}
+                    aria-label="Remove pillar"
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              <Button variant="secondary" icon={<Plus size={13} />} onClick={addPillar}>
+                Add pillar
+              </Button>
+            </div>
+          </Section>
+
+          <Section
+            title="Generation presets"
+            description="Quick directions available when starting a new batch."
+          >
+            <div className="space-y-3">
+              {presets.map((preset) => (
+                <div key={preset.id} className="rounded-lg border border-line bg-card p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={preset.name}
+                      onChange={(e) => updatePreset(preset.id, { name: e.target.value })}
+                      placeholder="Preset name"
+                      className={inputClass}
+                    />
+                    <Button
+                      variant="ghost"
+                      icon={<Trash2 size={12} />}
+                      onClick={() => removePreset(preset.id)}
+                      aria-label="Remove preset"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                  <textarea
+                    value={preset.direction}
+                    onChange={(e) => updatePreset(preset.id, { direction: e.target.value })}
+                    rows={2}
+                    placeholder="Describe the angle, format, or creative constraint this preset should apply."
+                    className={textareaClass}
+                  />
+                </div>
+              ))}
+              <Button variant="secondary" icon={<Plus size={13} />} onClick={addPreset}>
+                Add preset
+              </Button>
+            </div>
           </Section>
 
           {/* Style memory */}
@@ -82,7 +180,7 @@ export function BrainView({ brain, onChange }: BrainViewProps) {
           >
             <textarea
               value={brain.styleMemory}
-              onChange={(e) => onChange({ ...brain, styleMemory: e.target.value })}
+              onChange={(e) => onBrainChange({ ...brain, styleMemory: e.target.value })}
               rows={16}
               className={`${textareaClass} font-mono text-[12px] leading-relaxed`}
             />

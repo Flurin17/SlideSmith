@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, Loader2, CalendarClock, Info, CheckCircle2, ExternalLink } from 'lucide-react';
-import type { Slideshow, SocialAccount } from '../types';
+import type { BrandKit, Slideshow, SocialAccount } from '../types';
 import { getScheduledPosts } from '../lib/api';
 import { Button } from './Button';
 import { SlidePreview } from './SlidePreview';
@@ -20,6 +20,7 @@ function toLocalInput(d: Date): string {
 
 interface ScheduleModalProps {
   slideshow: Slideshow;
+  brandKit?: BrandKit;
   accounts: SocialAccount[];
   defaults: { socialAccountIds: number[]; mode: 'draft' | 'schedule' };
   onClose: () => void;
@@ -30,7 +31,7 @@ interface ScheduleModalProps {
   }) => Promise<void>;
 }
 
-export function ScheduleModal({ slideshow, accounts, defaults, onClose, onConfirm }: ScheduleModalProps) {
+export function ScheduleModal({ slideshow, brandKit, accounts, defaults, onClose, onConfirm }: ScheduleModalProps) {
   const [selected, setSelected] = useState<number[]>(defaults.socialAccountIds);
   const [mode, setMode] = useState<'draft' | 'schedule'>(defaults.mode);
   // Seed with now + gap immediately so the field is never blank; refine to
@@ -130,7 +131,7 @@ export function ScheduleModal({ slideshow, accounts, defaults, onClose, onConfir
           <div>
             <div className="grid grid-cols-6 gap-1.5">
               {slideshow.slides.map((s) => (
-                <SlidePreview key={s.id} slide={s} />
+                <SlidePreview key={s.id} slide={s} brandKit={brandKit} />
               ))}
             </div>
             <p className="text-[12px] text-ink-4 mt-2 line-clamp-2">{slideshow.caption}</p>

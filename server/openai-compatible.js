@@ -10,7 +10,7 @@ function extractJson(text) {
   return JSON.parse(candidate.slice(start, end + 1))
 }
 
-export async function chatCompletionJSON({ providerName, url, headers, model, prompt, tokenLimitParam = 'max_tokens' }) {
+export async function chatCompletionJSON({ providerName, url, headers, model, prompt, messages, tokenLimitParam = 'max_tokens' }) {
   if (!model) throw new Error('No model selected. Pick one in Settings.')
 
   const tokenLimit = { [tokenLimitParam]: 6000 }
@@ -24,7 +24,7 @@ export async function chatCompletionJSON({ providerName, url, headers, model, pr
       model,
       ...tokenLimit,
       response_format: { type: 'json_object' },
-      messages: [{ role: 'user', content: prompt }],
+      messages: messages || [{ role: 'user', content: prompt }],
     }),
   })
 

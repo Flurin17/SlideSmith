@@ -9,6 +9,7 @@ export type LinkStickerPosition =
   | 'lower-center';
 
 export type LinkStickerStyle = 'instagram' | 'tiktok';
+export type BrandFontStyle = 'bold' | 'editorial' | 'compact';
 
 export interface LinkSticker {
   text: string;
@@ -25,6 +26,7 @@ export interface Slide {
   bgFrom?: string;
   bgTo?: string;
   linkSticker?: LinkSticker;
+  fontStyle?: BrandFontStyle;
 }
 
 export interface Slideshow {
@@ -35,6 +37,11 @@ export interface Slideshow {
   slides: Slide[];
   createdAt: string;
   rationale: string;
+  generationContext?: {
+    direction?: string;
+    pillarName?: string;
+    presetName?: string;
+  };
 }
 
 export interface BrainState {
@@ -43,6 +50,7 @@ export interface BrainState {
   appDescription: string;
   audience: string;
   linkUrl: string;
+  contentPillars: string[];
   styleMemory: string;
 }
 
@@ -51,12 +59,34 @@ export interface ProjectDefaults {
   mode: 'draft' | 'schedule';
 }
 
+export interface BrandKit {
+  primaryColor: string;
+  accentColor: string;
+  backgroundColor: string;
+  textColor: string;
+  overlayOpacity: number;
+  logoDataUrl: string;
+  logoPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  fontStyle: BrandFontStyle;
+}
+
+export interface GenerationPreset {
+  id: string;
+  name: string;
+  direction: string;
+}
+
+export type QueueFeedbackAction = 'more-like-this' | 'too-generic' | 'save-as-template';
+
 export interface Project {
   id: string;
   name: string;
   brain: BrainState;
   defaults: ProjectDefaults;
   imagePacks: string[]; // background packs generation draws from ([] = gradients only)
+  brandKit: BrandKit;
+  generationPresets: GenerationPreset[];
+  aiCreativeControl: boolean;
 }
 
 export interface AppConfig {
@@ -74,6 +104,7 @@ export interface LibraryImage {
   url: string;
   pack: string;
   source: 'bundled' | 'scraped';
+  description?: string;
 }
 
 export interface LibraryPack {
@@ -116,4 +147,36 @@ export interface PostResult {
   shareUrl: string | null;
   description: string | null;
   lastSyncedAt: string | null;
+}
+
+export interface LearnFromWinnersResponse {
+  applied: boolean;
+  brain: BrainState;
+  learnedMemory: string;
+  sourcePostIds: string[];
+}
+
+export interface ImageTranscriptionStatus {
+  enabled: boolean;
+  running: boolean;
+  total: number;
+  described: number;
+  pending: number;
+  done: number;
+  failed: number;
+  lastError: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface GenerationProgressStatus {
+  id: string;
+  status: 'queued' | 'running' | 'done' | 'error';
+  phase: 'queued' | 'writing' | 'backgrounds' | 'saving' | 'done' | 'error';
+  message: string;
+  done: number;
+  total: number;
+  percent: number;
+  error: string | null;
+  resultCount: number;
 }

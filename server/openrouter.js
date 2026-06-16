@@ -31,7 +31,7 @@ export async function validateKey(apiKey) {
 }
 
 // One chat completion that must return a JSON object.
-export async function chatJSON({ apiKey, model, prompt }) {
+export async function chatJSON({ apiKey, model, prompt, messages }) {
   if (!apiKey) throw new Error('Missing OpenRouter API key. Add it in Settings.')
   return chatCompletionJSON({
     providerName: 'OpenRouter',
@@ -42,5 +42,6 @@ export async function chatJSON({ apiKey, model, prompt }) {
     },
     model,
     prompt,
+    messages,
   })
 }

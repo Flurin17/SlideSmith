@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { X, Loader2, CalendarClock, CheckCircle2, ExternalLink } from 'lucide-react';
-import type { Slideshow, SocialAccount, ProjectDefaults } from '../types';
+import type { BrandKit, Slideshow, SocialAccount, ProjectDefaults } from '../types';
 import { Button } from './Button';
 import { renderSlideshow } from '../lib/render';
 import { schedule as scheduleOne, getScheduledPosts } from '../lib/api';
@@ -11,6 +11,7 @@ const PB_DRAFTS_URL = 'https://www.post-bridge.com/dashboard/posts/drafts';
 
 interface BulkScheduleModalProps {
   slideshows: Slideshow[];
+  brandKit?: BrandKit;
   accounts: SocialAccount[];
   defaults: ProjectDefaults;
   onClose: () => void;
@@ -24,7 +25,7 @@ function toLocalInput(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function BulkScheduleModal({ slideshows, accounts, defaults, onClose, onDone }: BulkScheduleModalProps) {
+export function BulkScheduleModal({ slideshows, brandKit, accounts, defaults, onClose, onDone }: BulkScheduleModalProps) {
   const [selectedAccounts, setSelectedAccounts] = useState<number[]>(defaults.socialAccountIds);
   const [mode, setMode] = useState<'schedule' | 'draft'>(defaults.mode === 'draft' ? 'draft' : 'schedule');
   const [hours, setHours] = useState(6);
@@ -92,7 +93,7 @@ export function BulkScheduleModal({ slideshows, accounts, defaults, onClose, onD
         const i = next++;
         const show = slideshows[i];
         try {
-          const slides = await renderSlideshow(show);
+          const slides = await renderSlideshow(show, brandKit);
           const caption = `${show.caption}${show.hashtags.length ? ' ' + show.hashtags.map((t) => `#${t}`).join(' ') : ''}`;
           await scheduleOne({
             id: show.id,

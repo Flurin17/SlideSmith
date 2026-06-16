@@ -6,8 +6,15 @@
 // Caption geometry (font %, stroke, line-height, padding, centering) comes from
 // lib/captionStyle.ts — the SAME constants the editor preview uses — so the
 // scheduled PNG matches what the user saw when editing.
-import type { LinkSticker, Slide, Slideshow } from '../types';
+import type { BrandKit, LinkSticker, Slide, Slideshow } from '../types';
 import { FONT_SIZE_PCT, STROKE_RATIO, LINE_HEIGHT, SIDE_PAD_PCT, pct } from './captionStyle';
+import {
+  captionFontStack,
+  captionFontWeight,
+  captionStrokeColor,
+  normalizeBrandKit,
+  rgba,
+} from './brandKit';
 
 const W = 1080;
 const H = 1920;
@@ -48,6 +55,69 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement) {
   const w = img.width * scale;
   const h = img.height * scale;
   ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+}
+
+function drawContain(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  x: number,
+  y: number,
+  maxW: number,
+  maxH: number
+) {
+  const scale = Math.min(maxW / img.width, maxH / img.height);
+  const w = img.width * scale;
+  const h = img.height * scale;
+  ctx.drawImage(img, x + (maxW - w) / 2, y + (maxH - h) / 2, w, h);
+}
+
+function fillBrandGradient(ctx: CanvasRenderingContext2D, kit: BrandKit) {
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, kit.backgroundColor);
+  grad.addColorStop(0.62, kit.primaryColor);
+  grad.addColorStop(1, kit.accentColor);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  const glow = ctx.createRadialGradient(W * 0.82, H * 0.18, 0, W * 0.82, H * 0.18, H * 0.72);
+  glow.addColorStop(0, rgba(kit.accentColor, Math.min(0.38, kit.overlayOpacity * 0.55)));
+  glow.addColorStop(1, rgba(kit.accentColor, 0));
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function logoBox(position: BrandKit['logoPosition']) {
+  const maxW = Math.round(W * 0.23);
+  const maxH = Math.round(H * 0.1);
+  const edgeX = Math.round(W * 0.068);
+  const edgeY = Math.round(H * 0.058);
+
+  switch (position) {
+    case 'top-left':
+      return { x: edgeX, y: edgeY, maxW, maxH };
+    case 'top-right':
+      return { x: W - edgeX - maxW, y: edgeY, maxW, maxH };
+    case 'bottom-left':
+      return { x: edgeX, y: H - edgeY - maxH, maxW, maxH };
+    case 'bottom-right':
+      return { x: W - edgeX - maxW, y: H - edgeY - maxH, maxW, maxH };
+  }
+}
+
+async function drawLogo(ctx: CanvasRenderingContext2D, kit: BrandKit) {
+  if (!kit.logoDataUrl) return;
+  try {
+    const logo = await loadImage(kit.logoDataUrl);
+    const box = logoBox(kit.logoPosition);
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = Math.round(H * 0.012);
+    ctx.shadowOffsetY = Math.round(H * 0.004);
+    drawContain(ctx, logo, box.x, box.y, box.maxW, box.maxH);
+    ctx.restore();
+  } catch {
+    // Ignore a stale or unsupported data URL; the rest of the slide should render.
+  }
 }
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -170,9 +240,10 @@ function drawLinkSticker(ctx: CanvasRenderingContext2D, sticker?: LinkSticker) {
   ctx.restore();
 }
 
-export async function renderSlide(slide: Slide): Promise<string> {
+export async function renderSlide(slide: Slide, brandKit?: BrandKit): Promise<string> {
   // Make sure the web font is ready, otherwise the first render uses a fallback.
   if (document.fonts?.ready) await document.fonts.ready;
+  const kit = normalizeBrandKit({ ...brandKit, fontStyle: slide.fontStyle || brandKit?.fontStyle });
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -184,35 +255,30 @@ export async function renderSlide(slide: Slide): Promise<string> {
     try {
       const img = await loadImage(slide.imageUrl);
       drawCover(ctx, img);
-      // Darken so white text stays readable.
-      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      // Brand overlay, matching SlidePreview.
+      ctx.fillStyle = rgba(kit.backgroundColor, kit.overlayOpacity);
       ctx.fillRect(0, 0, W, H);
     } catch {
-      ctx.fillStyle = slide.bgFrom || '#0f172a';
-      ctx.fillRect(0, 0, W, H);
+      fillBrandGradient(ctx, kit);
     }
   } else {
-    // Gradient background
-    const grad = ctx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, slide.bgFrom || '#0f172a');
-    grad.addColorStop(1, slide.bgTo || '#1e293b');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
-    // Subtle vignette for depth
+    fillBrandGradient(ctx, kit);
     const vig = ctx.createRadialGradient(W / 2, H / 2, H / 3, W / 2, H / 2, H);
     vig.addColorStop(0, 'rgba(0,0,0,0)');
-    vig.addColorStop(1, 'rgba(0,0,0,0.45)');
+    vig.addColorStop(1, rgba(kit.backgroundColor, Math.min(0.55, kit.overlayOpacity)));
     ctx.fillStyle = vig;
     ctx.fillRect(0, 0, W, H);
   }
 
-  // Caption: white bold text, black outline, centered — driven by the SAME
-  // percentages the editor preview uses, so the two always match.
+  await drawLogo(ctx, kit);
+
+  // Caption style is driven by the SAME percentages/helpers the editor preview
+  // uses, so the two always match.
   const fontPx = Math.round(H * pct(FONT_SIZE_PCT));
   const lineHeight = Math.round(fontPx * LINE_HEIGHT);
   const strokeW = Math.max(2, Math.round(fontPx * STROKE_RATIO));
 
-  ctx.font = `800 ${fontPx}px Inter, sans-serif`;
+  ctx.font = `${captionFontWeight(kit.fontStyle)} ${fontPx}px ${captionFontStack(kit.fontStyle)}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.lineJoin = 'round';
@@ -227,10 +293,10 @@ export async function renderSlide(slide: Slide): Promise<string> {
   for (let i = 0; i < lines.length; i++) {
     const y = startY + i * lineHeight;
     // Paint stroke first, fill on top — same effect as CSS paint-order: stroke fill.
-    ctx.strokeStyle = 'black';
+    ctx.strokeStyle = captionStrokeColor(kit.textColor);
     ctx.lineWidth = strokeW;
     ctx.strokeText(lines[i], x, y);
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = kit.textColor;
     ctx.fillText(lines[i], x, y);
   }
 
@@ -239,10 +305,10 @@ export async function renderSlide(slide: Slide): Promise<string> {
   return canvas.toDataURL('image/png');
 }
 
-export async function renderSlideshow(show: Slideshow): Promise<string[]> {
+export async function renderSlideshow(show: Slideshow, brandKit?: BrandKit): Promise<string[]> {
   const out: string[] = [];
   for (const slide of show.slides) {
-    out.push(await renderSlide(slide));
+    out.push(await renderSlide(slide, brandKit));
   }
   return out;
 }

@@ -1,5 +1,7 @@
-import type { Slide } from '../types';
+import type { CSSProperties } from 'react';
+import type { BrandKit, Slide } from '../types';
 import { captionTextStyle, SLIDE_CONTAINER_STYLE, SIDE_PAD_PCT } from '../lib/captionStyle';
+import { brandGradient, normalizeBrandKit } from '../lib/brandKit';
 import {
   linkStickerClassName,
   linkStickerIconStyle,
@@ -10,16 +12,31 @@ import { Link2 } from 'lucide-react';
 
 interface SlidePreviewProps {
   slide: Slide;
+  brandKit?: BrandKit;
   className?: string;
   showText?: boolean;
 }
 
-export function SlidePreview({ slide, className = '', showText = true }: SlidePreviewProps) {
+function logoPositionStyle(position: BrandKit['logoPosition']): CSSProperties {
+  const edgeX = '6.8cqw';
+  const edgeY = '5.8cqh';
+  switch (position) {
+    case 'top-left':
+      return { left: edgeX, top: edgeY };
+    case 'top-right':
+      return { right: edgeX, top: edgeY };
+    case 'bottom-left':
+      return { left: edgeX, bottom: edgeY };
+    case 'bottom-right':
+      return { right: edgeX, bottom: edgeY };
+  }
+}
+
+export function SlidePreview({ slide, brandKit, className = '', showText = true }: SlidePreviewProps) {
+  const kit = normalizeBrandKit({ ...brandKit, fontStyle: slide.fontStyle || brandKit?.fontStyle });
   // Generated slides have no source image — render the same gradient the canvas
   // renderer uses, so the preview matches the exported PNG.
-  const background = slide.imageUrl
-    ? undefined
-    : `linear-gradient(135deg, ${slide.bgFrom || '#0f172a'}, ${slide.bgTo || '#1e293b'})`;
+  const background = slide.imageUrl ? undefined : brandGradient(kit);
 
   return (
     <div
@@ -35,16 +52,27 @@ export function SlidePreview({ slide, className = '', showText = true }: SlidePr
             alt=""
             className="absolute inset-0 w-full h-full object-cover"
           />
-          {/* Match the canvas bake's darkening (rgba(0,0,0,0.45)) for readability. */}
-          <div className="absolute inset-0 bg-black/45" />
+          {/* Match the canvas bake's brand overlay for readability. */}
+          <div
+            className="absolute inset-0"
+            style={{ backgroundColor: kit.backgroundColor, opacity: kit.overlayOpacity }}
+          />
         </>
+      )}
+      {kit.logoDataUrl && (
+        <img
+          src={kit.logoDataUrl}
+          alt=""
+          className="absolute z-10 max-w-[23cqw] max-h-[10cqh] object-contain drop-shadow-[0_0.45cqh_1.2cqh_rgba(0,0,0,0.35)]"
+          style={logoPositionStyle(kit.logoPosition)}
+        />
       )}
       {showText && (
         <div
-          className="absolute inset-0 flex items-center justify-center"
+          className="absolute inset-0 z-10 flex items-center justify-center"
           style={{ paddingLeft: `${SIDE_PAD_PCT}%`, paddingRight: `${SIDE_PAD_PCT}%` }}
         >
-          <span style={captionTextStyle()}>{slide.text}</span>
+          <span style={captionTextStyle(kit)}>{slide.text}</span>
         </div>
       )}
       {slide.linkSticker?.text && (

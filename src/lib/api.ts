@@ -8,9 +8,13 @@ import type {
   SocialAccount,
   ScheduledPost,
   PostResult,
+  LearnFromWinnersResponse,
+  ImageTranscriptionStatus,
+  GenerationProgressStatus,
   ModelOption,
   LibraryImage,
   LibraryPack,
+  QueueFeedbackAction,
 } from '../types';
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -42,7 +46,7 @@ export const createProject = (name?: string) =>
 
 export const updateProject = (
   id: string,
-  patch: Partial<Pick<Project, 'name' | 'brain' | 'defaults' | 'imagePacks'>>
+  patch: Partial<Pick<Project, 'name' | 'brain' | 'defaults' | 'imagePacks' | 'brandKit' | 'generationPresets' | 'aiCreativeControl'>>
 ) => req<AppConfig>(`/projects/${id}`, { method: 'PUT', body: JSON.stringify(patch) });
 
 export const deleteProject = (id: string) =>
@@ -61,8 +65,19 @@ export const getModels = () => req<ModelOption[]>('/models');
 
 export const getQueue = () => req<Slideshow[]>('/queue');
 
-export const generate = (count = 4, packs?: string[], direction = '') =>
-  req<Slideshow[]>('/generate', { method: 'POST', body: JSON.stringify({ count, packs, direction }) });
+export const generate = (count = 4, packs?: string[], direction = '', pillar = '', preset = '') =>
+  req<Slideshow[]>('/generate', { method: 'POST', body: JSON.stringify({ count, packs, direction, pillar, preset }) });
+
+export const startGeneration = (count = 4, packs?: string[], direction = '', pillar = '', preset = '') =>
+  req<GenerationProgressStatus>('/generate/start', {
+    method: 'POST',
+    body: JSON.stringify({ count, packs, direction, pillar, preset }),
+  });
+
+export const getGenerationStatus = (id: string) =>
+  req<GenerationProgressStatus>(`/generate/status/${encodeURIComponent(id)}`);
+
+export type { QueueFeedbackAction };
 
 export const removeFromQueue = (id: string) =>
   req<Slideshow[]>(`/queue/${id}`, { method: 'DELETE' });
@@ -72,10 +87,30 @@ export const updateSlideshow = (
   patch: Partial<Pick<Slideshow, 'slides' | 'caption' | 'hashtags' | 'hook'>>
 ) => req<Slideshow[]>(`/queue/${id}`, { method: 'PUT', body: JSON.stringify(patch) });
 
+export type SlideAiEditAction = 'shorten' | 'sharpen' | 'rewrite' | 'cta';
+
+export const editSlideWithAI = (payload: {
+  action: SlideAiEditAction;
+  slideIndex: number;
+  slides: Slideshow['slides'];
+  caption: string;
+  hashtags: string[];
+}) =>
+  req<{ slides: Slideshow['slides']; caption?: string; hashtags?: string[] }>('/ai/edit-slide', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
 // ── Image library ─────────────────────────────────────────────────────────────
 export const getLibrary = () => req<LibraryImage[]>('/library');
 
 export const getPacks = () => req<LibraryPack[]>('/library/packs');
+
+export const getImageTranscriptionStatus = () =>
+  req<ImageTranscriptionStatus>('/library/transcriptions/status');
+
+export const startImageTranscriptions = () =>
+  req<ImageTranscriptionStatus>('/library/transcriptions/start', { method: 'POST' });
 
 export const scrapePinterest = (searches: string[], count: number) =>
   req<{ added: number; found: number }>('/library/scrape', {
@@ -149,3 +184,9 @@ export async function syncResults(): Promise<PostResult[]> {
   const raw = await req<Array<Record<string, unknown>>>('/results/sync', { method: 'POST' });
   return raw.map(mapResult);
 }
+
+export const learnFromWinners = (postIds: string[], apply = false) =>
+  req<LearnFromWinnersResponse>('/results/learn', {
+    method: 'POST',
+    body: JSON.stringify({ postIds, apply }),
+  });
