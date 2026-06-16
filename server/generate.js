@@ -127,6 +127,13 @@ Write ${count} distinct slideshows. Respond with a JSON object of this exact sha
 
 Use 5-6 slides per slideshow. Add linkSticker only when the link sticker domain is configured and it improves the visual CTA or context; 0-2 stickers per slideshow is usually enough. The linkSticker text must be exactly the configured link sticker domain, not generic CTA text and not a full URL. Choose a position that avoids the main centered caption.
 
+Retention checker:
+- Slide 1 must be instantly clear: a viewer should understand the topic and stakes in under 1 second.
+- Slide 2 must create continuation: make the viewer need the next slide, not just repeat the hook.
+- Every slide must reveal something new: no filler, no restating the same idea.
+- The final slide must reward the swipe: include the practical answer, twist, checklist payoff, or next action.
+- If any slide does not increase curiosity, clarity, or payoff, rewrite it before returning JSON.
+
 Font control:
 - Pick a fontStyle for every slide.
 - "bold" is clean, direct, high-contrast social captioning.
@@ -147,7 +154,7 @@ Keep them on-brand, varied, and genuinely good. Do not write generic filler. Ret
 
 // Generate in small batches so big counts don't overflow the model's output /
 // truncate the JSON. Each call asks for a handful; we loop until we hit `count`.
-const BATCH = 6
+const BATCH = 10
 
 function providerLabel(aiProvider) {
   return aiProvider === 'azure-openai' ? 'Azure OpenAI' : 'OpenRouter'

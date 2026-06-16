@@ -17,7 +17,7 @@ interface GenerateModalProps {
 const COUNT_OPTIONS = [1, 3, 5, 10];
 
 export function GenerateModal({ defaultPacks, pillars, presets, generating, progress, onClose, onGenerate }: GenerateModalProps) {
-  const [count, setCount] = useState(3);
+  const [count, setCount] = useState(10);
   const [packs, setPacks] = useState<string[]>(defaultPacks);
   const [direction, setDirection] = useState('');
   const [pillar, setPillar] = useState('');
