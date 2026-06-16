@@ -11,6 +11,7 @@ import { ResultsView } from './views/ResultsView';
 import { BrainView } from './views/BrainView';
 import { SettingsView } from './views/SettingsView';
 import { renderSlideshow } from './lib/render';
+import { displayLinkDomain } from './lib/linkSticker';
 import * as api from './lib/api';
 import type { AppConfig, Project, Slideshow, Slide, SocialAccount, BrainState, ViewKey } from './types';
 
@@ -259,6 +260,7 @@ export default function App() {
       {editing && (
         <SlideshowEditorModal
           slideshow={editing}
+          defaultLinkText={displayLinkDomain(activeProject.brain.linkUrl)}
           onClose={() => setEditing(null)}
           onSave={saveEdits}
         />

@@ -19,6 +19,7 @@ const DEFAULT_BRAIN = {
   appName: '',
   appDescription: '',
   audience: '',
+  linkUrl: '',
   styleMemory: '',
 }
 const DEFAULT_DEFAULTS = { socialAccountIds: [], mode: 'draft' }

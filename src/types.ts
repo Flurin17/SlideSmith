@@ -1,5 +1,21 @@
 export type ViewKey = 'queue' | 'library' | 'schedule' | 'results' | 'brain' | 'settings';
 
+export type LinkStickerPosition =
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'upper-center'
+  | 'lower-center';
+
+export type LinkStickerStyle = 'instagram' | 'tiktok';
+
+export interface LinkSticker {
+  text: string;
+  position: LinkStickerPosition;
+  style: LinkStickerStyle;
+}
+
 export interface Slide {
   id: string;
   text: string;
@@ -8,6 +24,7 @@ export interface Slide {
   imageUrl?: string;
   bgFrom?: string;
   bgTo?: string;
+  linkSticker?: LinkSticker;
 }
 
 export interface Slideshow {
@@ -25,6 +42,7 @@ export interface BrainState {
   appName: string;
   appDescription: string;
   audience: string;
+  linkUrl: string;
   styleMemory: string;
 }
 

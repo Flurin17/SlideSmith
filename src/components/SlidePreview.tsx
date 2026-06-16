@@ -1,5 +1,12 @@
 import type { Slide } from '../types';
 import { captionTextStyle, SLIDE_CONTAINER_STYLE, SIDE_PAD_PCT } from '../lib/captionStyle';
+import {
+  linkStickerClassName,
+  linkStickerIconStyle,
+  linkStickerPositionStyle,
+  linkStickerTextStyle,
+} from '../lib/linkSticker';
+import { Link2 } from 'lucide-react';
 
 interface SlidePreviewProps {
   slide: Slide;
@@ -38,6 +45,15 @@ export function SlidePreview({ slide, className = '', showText = true }: SlidePr
           style={{ paddingLeft: `${SIDE_PAD_PCT}%`, paddingRight: `${SIDE_PAD_PCT}%` }}
         >
           <span style={captionTextStyle()}>{slide.text}</span>
+        </div>
+      )}
+      {slide.linkSticker?.text && (
+        <div
+          className={linkStickerClassName(slide.linkSticker)}
+          style={linkStickerPositionStyle(slide.linkSticker.position)}
+        >
+          <Link2 strokeWidth={3} style={linkStickerIconStyle(slide.linkSticker)} />
+          <span style={linkStickerTextStyle()}>{slide.linkSticker.text}</span>
         </div>
       )}
     </div>

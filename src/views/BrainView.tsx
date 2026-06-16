@@ -61,6 +61,20 @@ export function BrainView({ brain, onChange }: BrainViewProps) {
             </Field>
           </Section>
 
+          <Section
+            title="Link sticker"
+            description="The domain AI can place as a native-looking visual link sticker on future slides."
+          >
+            <Field label="Link or domain">
+              <input
+                value={brain.linkUrl}
+                onChange={(e) => onChange({ ...brain, linkUrl: e.target.value })}
+                placeholder="https://yourdomain.com"
+                className={inputClass}
+              />
+            </Field>
+          </Section>
+
           {/* Style memory */}
           <Section
             title="Style memory"

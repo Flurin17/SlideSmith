@@ -18,6 +18,43 @@ const PALETTE = [
   ['#26120a', '#1a0c06'],
 ]
 
+const LINK_STICKER_POSITIONS = new Set([
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+  'upper-center',
+  'lower-center',
+])
+
+function displayLinkDomain(value = '') {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const compact = raw.replace(/^@+/, '').split(/\s+/)[0]
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(compact) ? compact : `https://${compact}`)
+    const host = url.hostname.replace(/^www\./i, '')
+    return host || compact.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '')
+  } catch {
+    return compact.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '')
+  }
+}
+
+function slideText(raw) {
+  return typeof raw === 'string' ? raw : String(raw?.text || '')
+}
+
+function sanitizeLinkSticker(raw, stickerIndex, linkDomain) {
+  if (!linkDomain) return null
+  if (!raw || typeof raw !== 'object') return null
+  const position = LINK_STICKER_POSITIONS.has(raw.position) ? raw.position : 'bottom-right'
+  return {
+    text: linkDomain.slice(0, 48),
+    position,
+    style: stickerIndex % 2 === 0 ? 'instagram' : 'tiktok',
+  }
+}
+
 function buildPrompt(brain, count, direction = '') {
   return `You write short-form social media carousel slideshows (TikTok/Instagram).
 
@@ -25,6 +62,7 @@ Account context:
 - Niche: ${brain.niche || '(unspecified)'}
 - App / brand: ${brain.appName || '(unspecified)'} — ${brain.appDescription || ''}
 - Audience: ${brain.audience || '(unspecified)'}
+- Link sticker domain: ${displayLinkDomain(brain.linkUrl) || '(none — do not add link stickers)'}
 
 Batch direction / angle:
 ${direction || '(none — choose the strongest on-brand angles)'}
@@ -37,13 +75,27 @@ Write ${count} distinct slideshows. Respond with a JSON object of this exact sha
   "slideshows": [
     {
       "hook": "the first slide — a scroll-stopping line, max ~8 words",
-      "slides": ["the hook again as slide 1", "slide 2", "...5-6 lines total, each max ~8 words, last is a CTA like 'Save this'"],
+      "slides": [
+        {
+          "text": "the hook again as slide 1, max ~8 words",
+          "linkSticker": null
+        },
+        {
+          "text": "slide 2, max ~8 words",
+          "linkSticker": {
+            "text": "${displayLinkDomain(brain.linkUrl) || 'domain.com'}",
+            "position": "top-left | top-right | bottom-left | bottom-right | upper-center | lower-center"
+          }
+        }
+      ],
       "caption": "the post caption with 1-2 emoji",
       "hashtags": ["three", "relevant", "hashtags"],
       "rationale": "one sentence on why this should perform, tied to the style memory"
     }
   ]
 }
+
+Use 5-6 slides per slideshow. Add linkSticker only when the link sticker domain is configured and it improves the visual CTA or context; 0-2 stickers per slideshow is usually enough. The linkSticker text must be exactly the configured link sticker domain, not generic CTA text and not a full URL. Choose a position that avoids the main centered caption.
 
 Keep them on-brand, varied, and genuinely good. Do not write generic filler. Return ONLY the JSON object.`
 }
@@ -90,21 +142,28 @@ export async function generateSlideshows({ aiProvider = 'openrouter', keys, azur
   log.ok(`Generated ${Math.min(raw.length, count)} slideshow${raw.length === 1 ? '' : 's'}`)
 
   const stamp = Date.now()
+  const linkDomain = displayLinkDomain(brain?.linkUrl)
+  let linkStickerCount = 0
   return raw.slice(0, count).map((s, i) => {
     const [from, to] = PALETTE[i % PALETTE.length]
     return {
       id: `q-${stamp}-${i}`,
-      hook: s.hook || (s.slides && s.slides[0]) || '',
+      hook: s.hook || (s.slides && slideText(s.slides[0])) || '',
       caption: s.caption || '',
       hashtags: s.hashtags || [],
       rationale: s.rationale || '',
       createdAt: new Date(stamp).toISOString(),
-      slides: (s.slides || []).map((text, j) => ({
-        id: `slide-${stamp}-${i}-${j}`,
-        text,
-        bgFrom: from,
-        bgTo: to,
-      })),
+      slides: (s.slides || []).map((rawSlide, j) => {
+        const linkSticker = sanitizeLinkSticker(rawSlide?.linkSticker, linkStickerCount, linkDomain)
+        if (linkSticker) linkStickerCount++
+        return {
+          id: `slide-${stamp}-${i}-${j}`,
+          text: slideText(rawSlide),
+          bgFrom: from,
+          bgTo: to,
+          ...(linkSticker ? { linkSticker } : {}),
+        }
+      }),
     }
   })
 }

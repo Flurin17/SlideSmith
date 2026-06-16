@@ -6,7 +6,7 @@
 // Caption geometry (font %, stroke, line-height, padding, centering) comes from
 // lib/captionStyle.ts — the SAME constants the editor preview uses — so the
 // scheduled PNG matches what the user saw when editing.
-import type { Slide, Slideshow } from '../types';
+import type { LinkSticker, Slide, Slideshow } from '../types';
 import { FONT_SIZE_PCT, STROKE_RATIO, LINE_HEIGHT, SIDE_PAD_PCT, pct } from './captionStyle';
 
 const W = 1080;
@@ -48,6 +48,126 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement) {
   const w = img.width * scale;
   const h = img.height * scale;
   ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+}
+
+function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
+
+function ellipseText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let next = text.trim();
+  while (next.length > 1 && ctx.measureText(`${next}...`).width > maxWidth) {
+    next = next.slice(0, -1).trimEnd();
+  }
+  return `${next || text.slice(0, 1)}...`;
+}
+
+function linkStickerRect(sticker: LinkSticker, w: number, h: number) {
+  const edgeX = Math.round(W * 0.068);
+  const topY = Math.round(H * 0.074);
+  const bottomY = Math.round(H * 0.094);
+  const upperY = Math.round(H * 0.162);
+  const lowerBottom = Math.round(H * 0.19);
+
+  switch (sticker.position) {
+    case 'top-left':
+      return { x: edgeX, y: topY };
+    case 'top-right':
+      return { x: W - edgeX - w, y: topY };
+    case 'bottom-left':
+      return { x: edgeX, y: H - bottomY - h };
+    case 'bottom-right':
+      return { x: W - edgeX - w, y: H - bottomY - h };
+    case 'upper-center':
+      return { x: (W - w) / 2, y: upperY };
+    case 'lower-center':
+      return { x: (W - w) / 2, y: H - lowerBottom - h };
+  }
+}
+
+function drawLinkIcon(ctx: CanvasRenderingContext2D, cx: number, cy: number, color: string, bg: string, radius: number) {
+  const box = radius * 2;
+  roundedRect(ctx, cx - radius, cy - radius, box, box, radius * 0.34);
+  ctx.fillStyle = bg;
+  ctx.fill();
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-Math.PI / 4);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(3, radius * 0.16);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.roundRect(-radius * 0.72, -radius * 0.17, radius * 0.88, radius * 0.34, radius * 0.17);
+  ctx.roundRect(-radius * 0.16, -radius * 0.17, radius * 0.88, radius * 0.34, radius * 0.17);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawLinkSticker(ctx: CanvasRenderingContext2D, sticker?: LinkSticker) {
+  const text = sticker?.text?.trim();
+  if (!sticker || !text) return;
+
+  const isInstagram = sticker.style === 'instagram';
+  const fontPx = Math.round(H * 0.0215);
+  const stickerH = Math.round(H * (isInstagram ? 0.041 : 0.0365));
+  const padX = Math.round(H * (isInstagram ? 0.0135 : 0.0118));
+  const gap = Math.round(H * 0.0075);
+  const iconSize = Math.round(H * 0.0245);
+  const maxW = Math.round(W * 0.76);
+
+  ctx.save();
+  ctx.font = `800 ${fontPx}px Inter, sans-serif`;
+  const textMaxW = maxW - padX * 2 - iconSize - gap;
+  const label = ellipseText(ctx, text, textMaxW);
+  const textW = Math.ceil(ctx.measureText(label).width);
+  const stickerW = Math.min(maxW, padX * 2 + iconSize + gap + textW);
+  const { x, y } = linkStickerRect(sticker, stickerW, stickerH);
+
+  ctx.shadowColor = 'rgba(0,0,0,0.34)';
+  ctx.shadowBlur = Math.round(H * 0.012);
+  ctx.shadowOffsetY = Math.round(H * 0.006);
+  roundedRect(ctx, x, y, stickerW, stickerH, Math.round(stickerH * (isInstagram ? 0.39 : 0.29)));
+  ctx.fillStyle = isInstagram ? 'rgba(255,255,255,0.96)' : 'rgba(0,0,0,0.88)';
+  ctx.fill();
+
+  if (!isInstagram) {
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth = Math.max(3, Math.round(H * 0.0023));
+    roundedRect(ctx, x + 5, y + 5, stickerW, stickerH, Math.round(stickerH * 0.29));
+    ctx.strokeStyle = '#25f4ee';
+    ctx.stroke();
+    roundedRect(ctx, x - 5, y - 5, stickerW, stickerH, Math.round(stickerH * 0.29));
+    ctx.strokeStyle = '#fe2c55';
+    ctx.stroke();
+  }
+
+  ctx.shadowColor = 'transparent';
+  const iconCx = x + padX + iconSize / 2;
+  const iconCy = y + stickerH / 2;
+  drawLinkIcon(
+    ctx,
+    iconCx,
+    iconCy,
+    isInstagram ? '#0a0a0a' : '#ffffff',
+    isInstagram ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.16)',
+    iconSize / 2
+  );
+
+  ctx.fillStyle = isInstagram ? '#050505' : '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.font = `800 ${fontPx}px Inter, sans-serif`;
+  ctx.fillText(label, x + padX + iconSize + gap, y + stickerH / 2 + 1);
+  ctx.restore();
 }
 
 export async function renderSlide(slide: Slide): Promise<string> {
@@ -113,6 +233,8 @@ export async function renderSlide(slide: Slide): Promise<string> {
     ctx.fillStyle = '#ffffff';
     ctx.fillText(lines[i], x, y);
   }
+
+  drawLinkSticker(ctx, slide.linkSticker);
 
   return canvas.toDataURL('image/png');
 }

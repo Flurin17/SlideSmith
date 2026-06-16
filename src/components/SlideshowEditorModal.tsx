@@ -1,19 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, Loader2, ChevronLeft, ChevronRight, Trash2, Shuffle, Image as ImageIcon } from 'lucide-react';
-import type { Slideshow, Slide, LibraryImage } from '../types';
+import { X, Loader2, ChevronLeft, ChevronRight, Trash2, Shuffle, Image as ImageIcon, Link2 } from 'lucide-react';
+import type { Slideshow, Slide, LibraryImage, LinkStickerPosition } from '../types';
 import { Button } from './Button';
 import { SlidePreview } from './SlidePreview';
 import { getLibrary } from '../lib/api';
+import { LINK_STICKER_POSITIONS, LINK_STICKER_POSITION_LABELS } from '../lib/linkSticker';
 
 interface SlideshowEditorModalProps {
   slideshow: Slideshow;
+  defaultLinkText?: string;
   onClose: () => void;
   onSave: (patch: { slides: Slide[]; caption: string; hashtags: string[] }) => Promise<void>;
 }
 
 type Tab = 'post' | 'slide';
 
-export function SlideshowEditorModal({ slideshow, onClose, onSave }: SlideshowEditorModalProps) {
+export function SlideshowEditorModal({ slideshow, defaultLinkText = '', onClose, onSave }: SlideshowEditorModalProps) {
   const [slides, setSlides] = useState<Slide[]>(slideshow.slides.map((s) => ({ ...s })));
   const [caption, setCaption] = useState(slideshow.caption);
   const [hashtags, setHashtags] = useState(slideshow.hashtags.join(' '));
@@ -41,6 +43,22 @@ export function SlideshowEditorModal({ slideshow, onClose, onSave }: SlideshowEd
 
   const patchSlide = (patch: Partial<Slide>) =>
     setSlides((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
+
+  const addLinkSticker = () => {
+    const existingCount = slides.filter((s, i) => i !== index && s.linkSticker?.text).length;
+    patchSlide({
+      linkSticker: {
+        text: defaultLinkText || 'yourdomain.com',
+        position: 'bottom-right',
+        style: existingCount % 2 === 0 ? 'instagram' : 'tiktok',
+      },
+    });
+  };
+
+  const patchLinkSticker = (patch: { text?: string; position?: LinkStickerPosition }) => {
+    if (!current.linkSticker) return;
+    patchSlide({ linkSticker: { ...current.linkSticker, ...patch } });
+  };
 
   const shuffleBackgrounds = () => {
     const pool = filtered;
@@ -169,6 +187,52 @@ export function SlideshowEditorModal({ slideshow, onClose, onSave }: SlideshowEd
                     rows={3}
                     className="w-full bg-card border border-line rounded-lg px-3 py-2 text-[13px] text-ink resize-none outline-none focus:border-ink-7 focus:ring-2 focus:ring-ink/10"
                   />
+                </div>
+
+                <div className="rounded-lg border border-line bg-surface p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <label className="text-[11px] text-ink-6 uppercase tracking-widest font-semibold block">Link sticker</label>
+                      <p className="text-[10px] text-ink-6 mt-0.5">
+                        Visual only, baked into the slide image.
+                      </p>
+                    </div>
+                    {current.linkSticker ? (
+                      <Button variant="ghost" size="sm" onClick={() => patchSlide({ linkSticker: undefined })}>
+                        Remove
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="sm" icon={<Link2 size={12} />} onClick={addLinkSticker}>
+                        Add
+                      </Button>
+                    )}
+                  </div>
+
+                  {current.linkSticker && (
+                    <>
+                      <input
+                        value={current.linkSticker.text}
+                        onChange={(e) => patchLinkSticker({ text: e.target.value.slice(0, 48) })}
+                        placeholder={defaultLinkText || 'yourdomain.com'}
+                        maxLength={48}
+                        className="w-full h-9 bg-card border border-line rounded-lg px-3 text-[13px] text-ink outline-none focus:border-ink-7 focus:ring-2 focus:ring-ink/10"
+                      />
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={current.linkSticker.position}
+                          onChange={(e) => patchLinkSticker({ position: e.target.value as LinkStickerPosition })}
+                          className="min-w-0 flex-1 h-9 bg-card border border-line rounded-lg px-2.5 text-[12px] text-ink outline-none focus:border-ink-7"
+                        >
+                          {LINK_STICKER_POSITIONS.map((p) => (
+                            <option key={p} value={p}>{LINK_STICKER_POSITION_LABELS[p]}</option>
+                          ))}
+                        </select>
+                        <span className="shrink-0 h-9 px-2.5 rounded-lg border border-line bg-card text-[11px] text-ink-5 inline-flex items-center capitalize">
+                          {current.linkSticker.style}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div>
