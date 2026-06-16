@@ -74,12 +74,12 @@ export function QueueView({
               <Check size={20} className="text-ink-5" />
             </div>
             <h2 className="text-[15px] font-semibold text-ink">
-              {canGenerate ? 'Queue empty' : 'Add your OpenRouter key to start'}
+              {canGenerate ? 'Queue empty' : 'Complete AI provider settings'}
             </h2>
             <p className="text-[13px] text-ink-5 mt-1">
               {canGenerate
                 ? 'Generate a fresh batch of slideshows with AI.'
-                : 'Head to Settings, paste your OpenRouter API key, and tune the Brain.'}
+                : 'Head to Settings, choose OpenRouter or Azure OpenAI, and tune the Brain.'}
             </p>
             {canGenerate && (
               <div className="mt-4 flex justify-center">

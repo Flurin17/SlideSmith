@@ -1,5 +1,7 @@
 // OpenRouter client. OpenRouter is an OpenAI-compatible gateway to hundreds of
 // models behind a single key, with a public models list we surface as a dropdown.
+import { chatCompletionJSON } from './openai-compatible.js'
+
 const BASE = 'https://openrouter.ai/api/v1'
 
 // Recommended (optional) attribution headers for OpenRouter.
@@ -28,41 +30,17 @@ export async function validateKey(apiKey) {
   return true
 }
 
-// Pull a JSON object out of a model response, tolerating code fences / prose.
-function extractJson(text) {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/)
-  const candidate = fenced ? fenced[1] : text
-  const start = candidate.indexOf('{')
-  const end = candidate.lastIndexOf('}')
-  if (start === -1 || end === -1) throw new Error('Model did not return JSON.')
-  return JSON.parse(candidate.slice(start, end + 1))
-}
-
 // One chat completion that must return a JSON object.
 export async function chatJSON({ apiKey, model, prompt }) {
   if (!apiKey) throw new Error('Missing OpenRouter API key. Add it in Settings.')
-  if (!model) throw new Error('No model selected. Pick one in Settings.')
-
-  const res = await fetch(`${BASE}/chat/completions`, {
-    method: 'POST',
+  return chatCompletionJSON({
+    providerName: 'OpenRouter',
+    url: `${BASE}/chat/completions`,
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'content-type': 'application/json',
       ...ATTRIBUTION,
     },
-    body: JSON.stringify({
-      model,
-      max_tokens: 6000,
-      response_format: { type: 'json_object' },
-      messages: [{ role: 'user', content: prompt }],
-    }),
+    model,
+    prompt,
   })
-
-  const body = await res.json().catch(() => null)
-  if (!res.ok) {
-    throw new Error(`OpenRouter ${res.status}: ${body?.error?.message || res.statusText}`)
-  }
-  const content = body?.choices?.[0]?.message?.content
-  if (!content) throw new Error('OpenRouter returned no content.')
-  return extractJson(content)
 }

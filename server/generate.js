@@ -2,7 +2,8 @@
 // reference patterns), the chosen model writes N carousel slideshows: a hook,
 // caption, hashtags, a rationale, and the per-slide text. Images are rendered
 // later, client-side — the model only writes the words.
-import { chatJSON } from './openrouter.js'
+import { chatJSON as chatOpenRouterJSON } from './openrouter.js'
+import { chatJSON as chatAzureOpenAIJSON } from './azure-openai.js'
 import { logger } from './log.js'
 
 const log = logger('generate')
@@ -48,8 +49,24 @@ Keep them on-brand, varied, and genuinely good. Do not write generic filler. Ret
 // truncate the JSON. Each call asks for a handful; we loop until we hit `count`.
 const BATCH = 6
 
-export async function generateSlideshows({ apiKey, model, brain, count = 4 }) {
-  log.start(`Generating ${count} slideshow${count === 1 ? '' : 's'} with ${model}`)
+function providerLabel(aiProvider) {
+  return aiProvider === 'azure-openai' ? 'Azure OpenAI' : 'OpenRouter'
+}
+
+async function chatJSON({ aiProvider, keys, azureOpenAI, model, prompt }) {
+  if (aiProvider === 'azure-openai') {
+    return chatAzureOpenAIJSON({
+      apiKey: keys.azureOpenAI,
+      endpoint: azureOpenAI?.endpoint,
+      model,
+      prompt,
+    })
+  }
+  return chatOpenRouterJSON({ apiKey: keys.openrouter, model, prompt })
+}
+
+export async function generateSlideshows({ aiProvider = 'openrouter', keys, azureOpenAI, model, brain, count = 4 }) {
+  log.start(`Generating ${count} slideshow${count === 1 ? '' : 's'} with ${providerLabel(aiProvider)} · ${model}`)
   if (brain?.niche) log.info(`niche: ${brain.niche}${brain.appName ? ` · ${brain.appName}` : ''}`)
   const raw = []
   let safety = 0
@@ -57,7 +74,7 @@ export async function generateSlideshows({ apiKey, model, brain, count = 4 }) {
     safety++
     const n = Math.min(BATCH, count - raw.length)
     log.step(`asking model for ${n} more (${raw.length}/${count} so far)…`)
-    const parsed = await chatJSON({ apiKey, model, prompt: buildPrompt(brain, n) })
+    const parsed = await chatJSON({ aiProvider, keys, azureOpenAI, model, prompt: buildPrompt(brain, n) })
     const batch = parsed.slideshows || []
     if (!batch.length) {
       log.warn('model returned no slideshows — stopping early')

@@ -13,7 +13,9 @@ interface SettingsViewProps {
   canDelete: boolean;
   onSave: (patch: {
     keys?: AppConfig['keys'];
+    aiProvider?: AppConfig['aiProvider'];
     model?: string;
+    azureOpenAI?: AppConfig['azureOpenAI'];
     pinterestActor?: string;
     name?: string;
     defaults?: Project['defaults'];
@@ -47,7 +49,10 @@ export function SettingsView({
 }: SettingsViewProps) {
   const [postbridge, setPostbridge] = useState(config.keys.postbridge);
   const [openrouter, setOpenrouter] = useState(config.keys.openrouter);
+  const [azureOpenAI, setAzureOpenAI] = useState(config.keys.azureOpenAI);
+  const [azureEndpoint, setAzureEndpoint] = useState(config.azureOpenAI.endpoint);
   const [apify, setApify] = useState(config.keys.apify);
+  const [aiProvider, setAiProvider] = useState<AppConfig['aiProvider']>(config.aiProvider);
   const [pinterestActor, setPinterestActor] = useState(config.pinterestActor);
   const [model, setModel] = useState(config.model);
   const [name, setName] = useState(project.name);
@@ -60,15 +65,13 @@ export function SettingsView({
   const [testing, setTesting] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [test, setTest] = useState<{ postbridge: boolean; openrouter: boolean; apify: boolean; errors: Record<string, string> } | null>(null);
-
-  // Re-sync editable fields when the active project changes (switching projects).
-  useEffect(() => {
-    setName(project.name);
-    setMode(project.defaults.mode);
-    setSelected(project.defaults.socialAccountIds);
-    setImagePacks(project.imagePacks);
-  }, [project.id, project.name, project.defaults.mode, project.defaults.socialAccountIds, project.imagePacks]);
+  const [test, setTest] = useState<{
+    postbridge: boolean;
+    openrouter: boolean;
+    azureOpenAI: boolean;
+    apify: boolean;
+    errors: Record<string, string>;
+  } | null>(null);
 
   useEffect(() => {
     getModels().then(setModels).catch(() => setModels([]));
@@ -80,8 +83,10 @@ export function SettingsView({
     setSaveError(null);
     try {
       await onSave({
-        keys: { postbridge, openrouter, apify },
+        keys: { postbridge, openrouter, azureOpenAI, apify },
+        aiProvider,
         model,
+        azureOpenAI: { endpoint: azureEndpoint },
         pinterestActor,
         name,
         defaults: { socialAccountIds: selected, mode },
@@ -169,6 +174,15 @@ export function SettingsView({
               />
               <TestBadge ok={test?.openrouter} error={test?.errors?.openrouter} />
             </Field>
+            <Field label="Azure OpenAI API key" hint="Used when Azure OpenAI is selected below. The v1 API uses your Azure resource endpoint plus /openai/v1.">
+              <input
+                value={azureOpenAI}
+                onChange={(e) => setAzureOpenAI(e.target.value)}
+                placeholder="Azure API key"
+                className={`${inputClass} font-mono`}
+              />
+              <TestBadge ok={test?.azureOpenAI} error={test?.errors?.azureOpenAI} />
+            </Field>
             <Field label="Apify API key (optional)" hint="Only needed to scrape MORE Pinterest images. The bundled aesthetic packs work without it. Get one at console.apify.com.">
               <input
                 value={apify}
@@ -186,22 +200,53 @@ export function SettingsView({
                 className={`${inputClass} font-mono`}
               />
             </Field>
-            <Field label="Model" hint={`Pick any model OpenRouter offers${models.length ? ` (${models.length} available)` : ''}.`}>
-              <input
-                value={modelFilter}
-                onChange={(e) => setModelFilter(e.target.value)}
-                placeholder="Filter models… e.g. claude, gpt, llama"
-                className={`${inputClass} mb-2`}
-              />
-              <select value={model} onChange={(e) => setModel(e.target.value)} className={inputClass}>
-                {model && !filtered.some((m) => m.id === model) && <option value={model}>{model}</option>}
-                {filtered.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+            <Field label="AI provider" hint="OpenRouter uses the public model catalog. Azure OpenAI uses your v1 resource endpoint and model deployment name.">
+              <div className="flex gap-2">
+                <Button variant={aiProvider === 'openrouter' ? 'primary' : 'secondary'} onClick={() => setAiProvider('openrouter')}>
+                  OpenRouter
+                </Button>
+                <Button variant={aiProvider === 'azure-openai' ? 'primary' : 'secondary'} onClick={() => setAiProvider('azure-openai')}>
+                  Azure OpenAI
+                </Button>
+              </div>
             </Field>
+            {aiProvider === 'azure-openai' ? (
+              <>
+                <Field label="Azure OpenAI endpoint" hint="Example: https://your-resource.openai.azure.com. /openai/v1 is added automatically if omitted.">
+                  <input
+                    value={azureEndpoint}
+                    onChange={(e) => setAzureEndpoint(e.target.value)}
+                    placeholder="https://your-resource.openai.azure.com"
+                    className={`${inputClass} font-mono`}
+                  />
+                </Field>
+                <Field label="Azure model deployment" hint="Use the Azure deployment/model name configured on your resource.">
+                  <input
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder="gpt-4o-mini"
+                    className={`${inputClass} font-mono`}
+                  />
+                </Field>
+              </>
+            ) : (
+              <Field label="Model" hint={`Pick any model OpenRouter offers${models.length ? ` (${models.length} available)` : ''}.`}>
+                <input
+                  value={modelFilter}
+                  onChange={(e) => setModelFilter(e.target.value)}
+                  placeholder="Filter models… e.g. claude, gpt, llama"
+                  className={`${inputClass} mb-2`}
+                />
+                <select value={model} onChange={(e) => setModel(e.target.value)} className={inputClass}>
+                  {model && !filtered.some((m) => m.id === model) && <option value={model}>{model}</option>}
+                  {filtered.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
           </Section>
 
           {/* Posting defaults (per project) */}

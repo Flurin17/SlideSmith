@@ -27,7 +27,10 @@ export default function App() {
   const [generateOpen, setGenerateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasOpenrouter = !!config?.keys.openrouter;
+  const hasGenerationKey =
+    config?.aiProvider === 'azure-openai'
+      ? !!(config.keys.azureOpenAI && config.azureOpenAI.endpoint)
+      : !!config?.keys.openrouter;
   const hasPostbridge = !!config?.keys.postbridge;
   const hasApify = !!config?.keys.apify;
   const activeProject: Project | undefined = config?.projects.find(
@@ -48,7 +51,11 @@ export default function App() {
         const cfg = await api.getConfig();
         setConfig(cfg);
         setQueue(await api.getQueue());
-        if (!cfg.keys.openrouter && !cfg.keys.postbridge) setActiveView('settings');
+        const hasConfiguredGenerationKey =
+          cfg.aiProvider === 'azure-openai'
+            ? !!(cfg.keys.azureOpenAI && cfg.azureOpenAI.endpoint)
+            : !!cfg.keys.openrouter;
+        if (!hasConfiguredGenerationKey && !cfg.keys.postbridge) setActiveView('settings');
         if (cfg.keys.postbridge) loadAccounts();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not reach the Slidesmith server.');
@@ -74,10 +81,7 @@ export default function App() {
     setQueue(await api.removeFromQueue(id));
   };
 
-  // Keep the multi-select in sync as queue items come and go.
-  useEffect(() => {
-    setSelectedIds((prev) => prev.filter((id) => queue.some((s) => s.id === id)));
-  }, [queue]);
+  const visibleSelectedIds = selectedIds.filter((id) => queue.some((s) => s.id === id));
 
   const toggleSelect = (id: string) =>
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -121,14 +125,28 @@ export default function App() {
   // Global settings (keys/model) + per-project edits (name/defaults), in one call.
   const saveSettings = async (patch: {
     keys?: AppConfig['keys'];
+    aiProvider?: AppConfig['aiProvider'];
     model?: string;
+    azureOpenAI?: AppConfig['azureOpenAI'];
     pinterestActor?: string;
     name?: string;
     defaults?: Project['defaults'];
     imagePacks?: string[];
   }) => {
-    if (patch.keys || patch.model !== undefined || patch.pinterestActor !== undefined) {
-      await api.saveConfig({ keys: patch.keys, model: patch.model, pinterestActor: patch.pinterestActor });
+    if (
+      patch.keys ||
+      patch.aiProvider !== undefined ||
+      patch.model !== undefined ||
+      patch.azureOpenAI !== undefined ||
+      patch.pinterestActor !== undefined
+    ) {
+      await api.saveConfig({
+        keys: patch.keys,
+        aiProvider: patch.aiProvider,
+        model: patch.model,
+        azureOpenAI: patch.azureOpenAI,
+        pinterestActor: patch.pinterestActor,
+      });
     }
     if (activeProject && (patch.name !== undefined || patch.defaults || patch.imagePacks)) {
       await api.updateProject(activeProject.id, {
@@ -198,9 +216,9 @@ export default function App() {
           <QueueView
             slideshows={queue}
             generating={generating}
-            canGenerate={hasOpenrouter}
+            canGenerate={hasGenerationKey}
             onGenerate={() => setGenerateOpen(true)}
-            selectedIds={selectedIds}
+            selectedIds={visibleSelectedIds}
             onApprove={(id) => setScheduling(queue.find((s) => s.id === id) || null)}
             onReject={reject}
             onEdit={(id) => setEditing(queue.find((s) => s.id === id) || null)}
@@ -216,6 +234,7 @@ export default function App() {
         {activeView === 'brain' && <BrainView brain={activeProject.brain} onChange={saveBrain} />}
         {activeView === 'settings' && (
           <SettingsView
+            key={activeProject.id}
             config={config}
             project={activeProject}
             accounts={accounts}
@@ -245,9 +264,9 @@ export default function App() {
         />
       )}
 
-      {bulkOpen && selectedIds.length > 0 && (
+      {bulkOpen && visibleSelectedIds.length > 0 && (
         <BulkScheduleModal
-          slideshows={queue.filter((s) => selectedIds.includes(s.id))}
+          slideshows={queue.filter((s) => visibleSelectedIds.includes(s.id))}
           accounts={accounts}
           defaults={activeProject.defaults}
           // Closing via the X/backdrop must still drop any now-scheduled items
@@ -272,4 +291,3 @@ export default function App() {
     </div>
   );
 }
-

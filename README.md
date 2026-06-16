@@ -1,6 +1,6 @@
 # Slidesmith
 
-Generate on-brand TikTok/Instagram **carousel slideshows** with Claude, then schedule and post them to your connected accounts — all from a clean local dashboard you run yourself.
+Generate on-brand TikTok/Instagram **carousel slideshows** with an AI model, then schedule and post them to your connected accounts — all from a clean local dashboard you run yourself.
 
 Slidesmith is **bring-your-own-keys** and **local-first**. There's no SaaS, no sign-up, and no database to set up. It runs on your machine, stores its config in a single file in your home directory, and uses [post-bridge](https://post-bridge.com?atp=clip-factory) to handle the hard parts (media hosting, multi-platform scheduling/posting, and analytics).
 
@@ -12,7 +12,7 @@ Slidesmith is **bring-your-own-keys** and **local-first**. There's no SaaS, no s
 You ──▶ Brain (niche, audience, style)
           │
           ▼
-   Claude generates slideshows ──▶ Queue (review / approve)
+   AI generates slideshows ──────▶ Queue (review / approve)
                                       │
                                       ▼
                        Slides rendered to images in the browser
@@ -24,18 +24,19 @@ You ──▶ Brain (niche, audience, style)
                               Results (live analytics)
 ```
 
-- **Generation** is done by an AI model via **OpenRouter** (your OpenRouter key) — pick any model from the dropdown.
+- **Generation** is done by an AI model via **OpenRouter** or **Azure OpenAI v1** — pick a provider in Settings.
 - **Slide images** are rendered locally in your browser (text over a gradient *or* a background image from the Library) — no image-gen API, no cost.
 - **Backgrounds** come from a bundled **image library** of curated aesthetic packs. Want more? Scrape Pinterest with your own **Apify** key (optional).
 - **Scheduling, posting, and analytics** are handled by **post-bridge** (your post-bridge key). That also means **no posting integrations to build and no storage to host.**
 
 ## What you need
 
-Two API keys, entered in the in-app **Settings** screen:
+API keys are entered in the in-app **Settings** screen:
 
 | Key | What it's for | Where to get it |
 | --- | --- | --- |
 | **OpenRouter** | Runs the AI that writes the slideshows (any model) | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| **Azure OpenAI** *(alternative to OpenRouter)* | Runs generation through an Azure OpenAI v1 endpoint | Azure AI Foundry / Azure portal |
 | **post-bridge** | Scheduling, posting & analytics | [post-bridge.com](https://post-bridge.com?atp=clip-factory) |
 | **Apify** *(optional)* | Scrape extra Pinterest images into the Library | [console.apify.com](https://console.apify.com) |
 
@@ -50,11 +51,11 @@ npm install
 npm run dev
 ```
 
-Then open the printed Vite URL (default http://localhost:5173). On first run you'll land on **Settings** — paste your two keys, hit **Test connection**, and you're set.
+Then open the printed Vite URL (default http://localhost:5173). On first run you'll land on **Settings** — choose OpenRouter or Azure OpenAI for generation, paste your keys, hit **Test connection**, and you're set.
 
 `npm run dev` starts two things together:
 - the **web UI** (Vite, port 5173)
-- the **local server** (Node/Express, port 8787) that holds your keys and talks to Claude + post-bridge
+- the **local server** (Node/Express, port 8787) that holds your keys and talks to your AI provider + post-bridge
 
 ### Production / single-process
 
@@ -84,13 +85,13 @@ Slidesmith ships with ~140 curated background images organized into aesthetic pa
 - **Scraped library images:** `~/.slidesmith/library/` (bundled packs live in the repo at `public/library/`)
 - **Everything else** (media, scheduled posts, results) lives in your post-bridge account.
 
-Your keys never leave your machine except to reach the services they belong to (OpenRouter, post-bridge). The browser never sees them — they stay on the local server.
+Your keys never leave your machine except to reach the services they belong to (OpenRouter or Azure OpenAI, post-bridge, and optionally Apify). The Settings UI reads them from your local server, but browser requests to third-party services are not made directly.
 
 You can override the storage location with `SLIDESMITH_DIR` and the server port with `PORT` (see `.env.example`).
 
 ## Tech
 
-React 19 + Vite + Tailwind (UI), a small Express server (keys + OpenRouter + post-bridge proxy), the OpenRouter API, and the post-bridge API. No database.
+React 19 + Vite + Tailwind (UI), a small Express server (keys + AI provider + post-bridge proxy), OpenRouter or Azure OpenAI v1 for generation, and the post-bridge API. No database.
 
 ## License
 

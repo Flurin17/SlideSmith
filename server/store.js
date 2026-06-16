@@ -77,8 +77,10 @@ export function getConfig() {
     : projects[0].id
 
   const cfg = {
-    keys: { postbridge: '', openrouter: '', apify: '', ...s.keys },
+    keys: { postbridge: '', openrouter: '', azureOpenAI: '', apify: '', ...s.keys },
+    aiProvider: s.aiProvider || 'openrouter',
     model: s.model || 'openai/gpt-4o-mini',
+    azureOpenAI: { endpoint: '', ...s.azureOpenAI },
     pinterestActor: s.pinterestActor || 'fatihtahta/pinterest-scraper-search',
     projects,
     activeProjectId,
@@ -107,7 +109,9 @@ export function saveGlobal(patch) {
   const c = getConfig()
   return writeConfig({
     ...c,
+    aiProvider: patch.aiProvider ?? c.aiProvider,
     model: patch.model ?? c.model,
+    azureOpenAI: { ...c.azureOpenAI, ...patch.azureOpenAI },
     pinterestActor: patch.pinterestActor ?? c.pinterestActor,
     keys: { ...c.keys, ...patch.keys },
   })

@@ -42,8 +42,10 @@ export interface Project {
 }
 
 export interface AppConfig {
-  keys: { postbridge: string; openrouter: string; apify: string };
+  keys: { postbridge: string; openrouter: string; azureOpenAI: string; apify: string };
+  aiProvider: 'openrouter' | 'azure-openai';
   model: string;
+  azureOpenAI: { endpoint: string };
   pinterestActor: string;
   projects: Project[];
   activeProjectId: string;

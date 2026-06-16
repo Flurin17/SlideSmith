@@ -55,8 +55,23 @@ export function ScheduleView({ configured }: ScheduleViewProps) {
   }, [configured]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!configured) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const nextPosts = await getScheduledPosts();
+        if (!cancelled) {
+          setPosts(nextPosts);
+          setError(null);
+        }
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [configured]);
 
   const grouped = posts
     ? Object.entries(

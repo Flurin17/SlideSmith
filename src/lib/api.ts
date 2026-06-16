@@ -1,6 +1,6 @@
 // Frontend API client. All calls go to the local Slidesmith server (proxied at
 // /api in dev, same-origin in production). The server holds the keys and talks
-// to Claude + post-bridge — the browser never sees the secrets in a request.
+// to the configured AI provider + post-bridge — the browser never sees secrets in requests.
 import type {
   AppConfig,
   Project,
@@ -26,8 +26,14 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const getConfig = () => req<AppConfig>('/config');
 
-// Global settings only (keys + model + scraper actor).
-export const saveConfig = (patch: { keys?: AppConfig['keys']; model?: string; pinterestActor?: string }) =>
+// Global settings only (keys + provider/model + scraper actor).
+export const saveConfig = (patch: {
+  keys?: AppConfig['keys'];
+  aiProvider?: AppConfig['aiProvider'];
+  model?: string;
+  azureOpenAI?: AppConfig['azureOpenAI'];
+  pinterestActor?: string;
+}) =>
   req<AppConfig>('/config', { method: 'PUT', body: JSON.stringify(patch) });
 
 // Projects — each has its own Brain + default post-bridge accounts.
@@ -46,7 +52,7 @@ export const activateProject = (id: string) =>
   req<AppConfig>(`/projects/${id}/activate`, { method: 'POST' });
 
 export const testKeys = () =>
-  req<{ postbridge: boolean; openrouter: boolean; apify: boolean; errors: Record<string, string> }>(
+  req<{ postbridge: boolean; openrouter: boolean; azureOpenAI: boolean; apify: boolean; errors: Record<string, string> }>(
     '/config/test',
     { method: 'POST' }
   );

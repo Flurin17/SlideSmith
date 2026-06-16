@@ -1,4 +1,4 @@
-// Slidesmith local server. Holds the user's API keys, runs Claude generation,
+// Slidesmith local server. Holds the user's API keys, runs AI generation,
 // proxies post-bridge (so keys never touch the browser and CORS is a non-issue),
 // and serves the built UI in production. In dev, Vite proxies /api here.
 import express from 'express'
@@ -22,6 +22,7 @@ import {
 import { listAccounts, listPosts, listAnalytics, syncAnalytics, uploadMedia, createPost } from './postbridge.js'
 import { generateSlideshows } from './generate.js'
 import { listModels, validateKey } from './openrouter.js'
+import { validateAzureOpenAI } from './azure-openai.js'
 import { listLibrary, listPacks, scrapePinterest, removeScraped, getScrapedFile } from './library.js'
 import { logger } from './log.js'
 
@@ -67,7 +68,7 @@ app.post('/api/projects/:id/activate', h(async (req, res) => res.json(setActiveP
 // Validate that the saved keys actually work, so Settings can show a green check.
 app.post('/api/config/test', h(async (_req, res) => {
   const { keys } = getConfig()
-  const result = { postbridge: false, openrouter: false, apify: false, errors: {} }
+  const result = { postbridge: false, openrouter: false, azureOpenAI: false, apify: false, errors: {} }
   if (keys.postbridge) {
     try { await listAccounts(keys.postbridge); result.postbridge = true }
     catch (e) { result.errors.postbridge = e.message }
@@ -75,6 +76,11 @@ app.post('/api/config/test', h(async (_req, res) => {
   if (keys.openrouter) {
     try { await validateKey(keys.openrouter); result.openrouter = true }
     catch (e) { result.errors.openrouter = e.message }
+  }
+  if (keys.azureOpenAI) {
+    const { azureOpenAI } = getConfig()
+    try { await validateAzureOpenAI({ apiKey: keys.azureOpenAI, endpoint: azureOpenAI.endpoint }); result.azureOpenAI = true }
+    catch (e) { result.errors.azureOpenAI = e.message }
   }
   if (keys.apify) {
     try {
@@ -96,10 +102,10 @@ app.get('/api/queue', h(async (_req, res) => {
 }))
 
 app.post('/api/generate', h(async (req, res) => {
-  const { keys, model } = getConfig()
+  const { keys, aiProvider, model, azureOpenAI } = getConfig()
   const project = getActiveProject()
   const count = Math.min(Math.max(Math.round(Number(req.body?.count) || 4), 1), 100)
-  const slideshows = await generateSlideshows({ apiKey: keys.openrouter, model, brain: project.brain, count })
+  const slideshows = await generateSlideshows({ aiProvider, keys, azureOpenAI, model, brain: project.brain, count })
 
   // Auto-assign background images. A per-batch `packs` override (from the
   // Generate modal) wins; otherwise fall back to the project's saved packs.
