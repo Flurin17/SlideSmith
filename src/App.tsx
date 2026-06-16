@@ -63,11 +63,11 @@ export default function App() {
     })();
   }, [loadAccounts]);
 
-  const generate = async (count: number, packs: string[]) => {
+  const generate = async (count: number, packs: string[], direction: string) => {
     setError(null);
     setGenerating(true);
     try {
-      await api.generate(count, packs);
+      await api.generate(count, packs, direction);
       setQueue(await api.getQueue());
       setGenerateOpen(false);
     } catch (e) {

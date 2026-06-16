@@ -54,16 +54,30 @@ export function Sidebar({
       {/* Project switcher */}
       <div className="px-3 py-3 border-b border-line relative">
         <span className="text-[11px] font-medium text-ink-6 uppercase tracking-widest px-1">Project</span>
-        <button
-          onClick={() => setMenuOpen((o) => !o)}
-          className="mt-2 w-full flex items-center gap-2.5 px-2 py-2 rounded-lg bg-raised hover:bg-line transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ink/10"
-        >
-          <div className="w-5 h-5 rounded-[5px] bg-ink text-bg flex items-center justify-center text-[10px] font-bold shrink-0">
-            {initials(active.name)}
-          </div>
-          <span className="text-[13px] font-medium text-ink truncate flex-1 text-left">{active.name}</span>
-          <ChevronsUpDown size={13} className="text-ink-5 shrink-0" />
-        </button>
+        <div className="mt-2 flex items-center gap-1.5">
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            className="min-w-0 flex-1 flex items-center gap-2.5 px-2 py-2 rounded-lg bg-raised hover:bg-line transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ink/10"
+          >
+            <div className="w-5 h-5 rounded-[5px] bg-ink text-bg flex items-center justify-center text-[10px] font-bold shrink-0">
+              {initials(active.name)}
+            </div>
+            <span className="text-[13px] font-medium text-ink truncate flex-1 text-left">{active.name}</span>
+            <ChevronsUpDown size={13} className="text-ink-5 shrink-0" />
+          </button>
+          <button
+            onClick={() => onSelectView('settings')}
+            aria-label="Open project settings"
+            title="Open project settings"
+            className={`w-9 h-9 rounded-lg border transition-colors flex items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ink/10 ${
+              activeView === 'settings'
+                ? 'bg-ink text-bg border-ink'
+                : 'bg-card text-ink-5 border-line hover:border-line-2 hover:text-ink'
+            }`}
+          >
+            <Settings size={14} />
+          </button>
+        </div>
 
         {menuOpen && (
           <>

@@ -61,8 +61,8 @@ export const getModels = () => req<ModelOption[]>('/models');
 
 export const getQueue = () => req<Slideshow[]>('/queue');
 
-export const generate = (count = 4, packs?: string[]) =>
-  req<Slideshow[]>('/generate', { method: 'POST', body: JSON.stringify({ count, packs }) });
+export const generate = (count = 4, packs?: string[], direction = '') =>
+  req<Slideshow[]>('/generate', { method: 'POST', body: JSON.stringify({ count, packs, direction }) });
 
 export const removeFromQueue = (id: string) =>
   req<Slideshow[]>(`/queue/${id}`, { method: 'DELETE' });

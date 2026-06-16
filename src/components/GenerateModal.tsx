@@ -7,7 +7,7 @@ interface GenerateModalProps {
   defaultPacks: string[];
   generating: boolean;
   onClose: () => void;
-  onGenerate: (count: number, packs: string[]) => void;
+  onGenerate: (count: number, packs: string[], direction: string) => void;
 }
 
 const COUNT_OPTIONS = [1, 3, 5, 10];
@@ -15,6 +15,7 @@ const COUNT_OPTIONS = [1, 3, 5, 10];
 export function GenerateModal({ defaultPacks, generating, onClose, onGenerate }: GenerateModalProps) {
   const [count, setCount] = useState(3);
   const [packs, setPacks] = useState<string[]>(defaultPacks);
+  const [direction, setDirection] = useState('');
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={generating ? undefined : onClose}>
@@ -56,6 +57,22 @@ export function GenerateModal({ defaultPacks, generating, onClose, onGenerate }:
             <p className="text-[11px] text-ink-6 mt-1">1–100. Large batches take a while — they generate in chunks.</p>
           </div>
 
+          {/* Direction */}
+          <div>
+            <label htmlFor="generate-direction" className="text-[11px] text-ink-5 uppercase tracking-widest font-semibold mb-1.5 block">
+              Direction
+            </label>
+            <input
+              id="generate-direction"
+              type="text"
+              value={direction}
+              disabled={generating}
+              onChange={(e) => setDirection(e.target.value)}
+              placeholder="e.g. contrarian, beginner-friendly, founder POV"
+              className="w-full h-9 bg-card border border-line rounded-lg px-3 text-[13px] text-ink outline-none focus:border-ink-7 focus:ring-2 focus:ring-ink/10 placeholder:text-ink-6 disabled:opacity-50"
+            />
+          </div>
+
           {/* Packs */}
           <div>
             <label className="text-[11px] text-ink-5 uppercase tracking-widest font-semibold mb-1.5 block">Background packs</label>
@@ -68,7 +85,7 @@ export function GenerateModal({ defaultPacks, generating, onClose, onGenerate }:
           <Button
             variant="primary"
             icon={generating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-            onClick={() => onGenerate(count, packs)}
+            onClick={() => onGenerate(count, packs, direction.trim())}
             disabled={generating}
           >
             {generating ? 'Generating…' : `Generate ${count}`}

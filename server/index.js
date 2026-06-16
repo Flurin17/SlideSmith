@@ -105,7 +105,8 @@ app.post('/api/generate', h(async (req, res) => {
   const { keys, aiProvider, model, azureOpenAI } = getConfig()
   const project = getActiveProject()
   const count = Math.min(Math.max(Math.round(Number(req.body?.count) || 4), 1), 100)
-  const slideshows = await generateSlideshows({ aiProvider, keys, azureOpenAI, model, brain: project.brain, count })
+  const direction = String(req.body?.direction || '').trim().slice(0, 500)
+  const slideshows = await generateSlideshows({ aiProvider, keys, azureOpenAI, model, brain: project.brain, count, direction })
 
   // Auto-assign background images. A per-batch `packs` override (from the
   // Generate modal) wins; otherwise fall back to the project's saved packs.

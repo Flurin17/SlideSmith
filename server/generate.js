@@ -18,13 +18,16 @@ const PALETTE = [
   ['#26120a', '#1a0c06'],
 ]
 
-function buildPrompt(brain, count) {
+function buildPrompt(brain, count, direction = '') {
   return `You write short-form social media carousel slideshows (TikTok/Instagram).
 
 Account context:
 - Niche: ${brain.niche || '(unspecified)'}
 - App / brand: ${brain.appName || '(unspecified)'} — ${brain.appDescription || ''}
 - Audience: ${brain.audience || '(unspecified)'}
+
+Batch direction / angle:
+${direction || '(none — choose the strongest on-brand angles)'}
 
 What's working for this account (style memory — respect this closely):
 ${brain.styleMemory || '(none yet — use proven short-form patterns)'}
@@ -65,16 +68,17 @@ async function chatJSON({ aiProvider, keys, azureOpenAI, model, prompt }) {
   return chatOpenRouterJSON({ apiKey: keys.openrouter, model, prompt })
 }
 
-export async function generateSlideshows({ aiProvider = 'openrouter', keys, azureOpenAI, model, brain, count = 4 }) {
+export async function generateSlideshows({ aiProvider = 'openrouter', keys, azureOpenAI, model, brain, count = 4, direction = '' }) {
   log.start(`Generating ${count} slideshow${count === 1 ? '' : 's'} with ${providerLabel(aiProvider)} · ${model}`)
   if (brain?.niche) log.info(`niche: ${brain.niche}${brain.appName ? ` · ${brain.appName}` : ''}`)
+  if (direction) log.info(`direction: ${direction}`)
   const raw = []
   let safety = 0
   while (raw.length < count && safety < count + 5) {
     safety++
     const n = Math.min(BATCH, count - raw.length)
     log.step(`asking model for ${n} more (${raw.length}/${count} so far)…`)
-    const parsed = await chatJSON({ aiProvider, keys, azureOpenAI, model, prompt: buildPrompt(brain, n) })
+    const parsed = await chatJSON({ aiProvider, keys, azureOpenAI, model, prompt: buildPrompt(brain, n, direction) })
     const batch = parsed.slideshows || []
     if (!batch.length) {
       log.warn('model returned no slideshows — stopping early')
