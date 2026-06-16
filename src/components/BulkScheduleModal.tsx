@@ -4,6 +4,7 @@ import type { BrandKit, Slideshow, SocialAccount, ProjectDefaults } from '../typ
 import { Button } from './Button';
 import { renderSlideshow } from '../lib/render';
 import { schedule as scheduleOne, getScheduledPosts } from '../lib/api';
+import { formatPostCaption } from '../lib/hashtags';
 
 // post-bridge dashboard — where the user reviews what we just sent over.
 const PB_SCHEDULED_URL = 'https://www.post-bridge.com/dashboard/posts/scheduled';
@@ -94,7 +95,7 @@ export function BulkScheduleModal({ slideshows, brandKit, accounts, defaults, on
         const show = slideshows[i];
         try {
           const slides = await renderSlideshow(show, brandKit);
-          const caption = `${show.caption}${show.hashtags.length ? ' ' + show.hashtags.map((t) => `#${t}`).join(' ') : ''}`;
+          const caption = formatPostCaption(show.caption, show.hashtags);
           await scheduleOne({
             id: show.id,
             caption,

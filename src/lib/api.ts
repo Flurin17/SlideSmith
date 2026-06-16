@@ -15,6 +15,7 @@ import type {
   LibraryImage,
   LibraryPack,
   QueueFeedbackAction,
+  WebsiteDescriptionResponse,
 } from '../types';
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -97,6 +98,12 @@ export const editSlideWithAI = (payload: {
   hashtags: string[];
 }) =>
   req<{ slides: Slideshow['slides']; caption?: string; hashtags?: string[] }>('/ai/edit-slide', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+export const describeWebsite = (payload: { url: string; brain: Project['brain'] }) =>
+  req<WebsiteDescriptionResponse>('/brain/website-description', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

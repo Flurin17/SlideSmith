@@ -1,7 +1,9 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Loader2, Plus, Sparkles, Trash2 } from 'lucide-react';
 import type { BrainState, GenerationPreset, Project } from '../types';
 import { ViewHeader } from '../components/ViewHeader';
 import { Button } from '../components/Button';
+import { describeWebsite } from '../lib/api';
 
 interface BrainViewProps {
   project: Project;
@@ -25,6 +27,9 @@ function newId(prefix: string) {
 
 export function BrainView({ project, onBrainChange, onGenerationPresetsChange }: BrainViewProps) {
   const brain = project.brain;
+  const [websiteBusy, setWebsiteBusy] = useState(false);
+  const [websiteMessage, setWebsiteMessage] = useState('');
+  const [websiteError, setWebsiteError] = useState('');
   const pillars = brain.contentPillars || [];
   const presets = project.generationPresets || [];
   const updatePillar = (index: number, value: string) => {
@@ -48,6 +53,34 @@ export function BrainView({ project, onBrainChange, onGenerationPresetsChange }:
   const removePreset = (id: string) =>
     onGenerationPresetsChange(presets.filter((preset) => preset.id !== id));
 
+  async function handleWebsiteDescription() {
+    const url = brain.linkUrl.trim();
+    if (!url) {
+      setWebsiteMessage('');
+      setWebsiteError('Add a link sticker URL first.');
+      return;
+    }
+    setWebsiteBusy(true);
+    setWebsiteMessage('');
+    setWebsiteError('');
+    try {
+      const result = await describeWebsite({ url, brain });
+      onBrainChange({
+        ...brain,
+        linkUrl: result.url || brain.linkUrl,
+        appName: brain.appName || result.appName,
+        niche: brain.niche || result.niche,
+        audience: brain.audience || result.audience,
+        appDescription: result.appDescription || brain.appDescription,
+      });
+      setWebsiteMessage(result.appDescription ? 'App description updated.' : 'Website fetched, but no clear description was found.');
+    } catch (e) {
+      setWebsiteError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setWebsiteBusy(false);
+    }
+  }
+
   return (
     <>
       <ViewHeader
@@ -57,7 +90,6 @@ export function BrainView({ project, onBrainChange, onGenerationPresetsChange }:
 
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto p-8 space-y-8">
-          {/* Niche & app */}
           <Section title="Account context" description="Rarely changes. Defines who the AI is writing for.">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Niche">
@@ -75,33 +107,52 @@ export function BrainView({ project, onBrainChange, onGenerationPresetsChange }:
                 />
               </Field>
             </div>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-end">
+              <Field label="Link sticker URL">
+                <input
+                  value={brain.linkUrl}
+                  onChange={(e) => onBrainChange({ ...brain, linkUrl: e.target.value })}
+                  placeholder="https://yourdomain.com"
+                  className={inputClass}
+                />
+              </Field>
+              <Button
+                variant="secondary"
+                size="lg"
+                icon={websiteBusy ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                onClick={handleWebsiteDescription}
+                disabled={websiteBusy || !brain.linkUrl.trim()}
+                className="h-9"
+              >
+                {websiteBusy ? 'Fetching' : 'Get app description'}
+              </Button>
+            </div>
+            {(websiteMessage || websiteError) && (
+              <p className={`text-[12px] ${websiteError ? 'text-red-600' : 'text-ink-5'}`}>
+                {websiteError || websiteMessage}
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Audience">
+                <input
+                  value={brain.audience}
+                  onChange={(e) => onBrainChange({ ...brain, audience: e.target.value })}
+                  className={inputClass}
+                />
+              </Field>
+              <div className="rounded-lg border border-line bg-card px-3 py-2">
+                <p className="text-[11px] uppercase tracking-widest font-semibold text-ink-5">Sticker text</p>
+                <p className="text-[13px] text-ink mt-1 truncate">
+                  {brain.linkUrl ? brain.linkUrl.replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, '') : 'No domain'}
+                </p>
+              </div>
+            </div>
             <Field label="App description">
               <textarea
                 value={brain.appDescription}
                 onChange={(e) => onBrainChange({ ...brain, appDescription: e.target.value })}
-                rows={2}
+                rows={3}
                 className={textareaClass}
-              />
-            </Field>
-            <Field label="Audience">
-              <input
-                value={brain.audience}
-                onChange={(e) => onBrainChange({ ...brain, audience: e.target.value })}
-                className={inputClass}
-              />
-            </Field>
-          </Section>
-
-          <Section
-            title="Link sticker"
-            description="The domain AI can place as a native-looking visual link sticker on future slides."
-          >
-            <Field label="Link or domain">
-              <input
-                value={brain.linkUrl}
-                onChange={(e) => onBrainChange({ ...brain, linkUrl: e.target.value })}
-                placeholder="https://yourdomain.com"
-                className={inputClass}
               />
             </Field>
           </Section>

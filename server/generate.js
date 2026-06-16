@@ -46,6 +46,29 @@ function slideText(raw) {
   return typeof raw === 'string' ? raw : String(raw?.text || '')
 }
 
+function cleanCaption(raw) {
+  return String(raw || '')
+    .replace(/(^|\s)#+[\p{L}\p{N}_]+/gu, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+function cleanHashtags(raw) {
+  const list = Array.isArray(raw) ? raw : []
+  const seen = new Set()
+  const out = []
+  for (const item of list) {
+    const tag = String(item || '')
+      .trim()
+      .replace(/^#+/, '')
+      .replace(/[^\p{L}\p{N}_]/gu, '')
+    if (!tag || seen.has(tag.toLowerCase())) continue
+    seen.add(tag.toLowerCase())
+    out.push(tag)
+  }
+  return out
+}
+
 function sanitizeFontStyle(raw) {
   return FONT_STYLES.has(raw) ? raw : null
 }
@@ -118,7 +141,7 @@ Write ${count} distinct slideshows. Respond with a JSON object of this exact sha
           }
         }
       ],
-      "caption": "the post caption with 1-2 emoji",
+      "caption": "the post caption with 1-2 emoji, no hashtags",
       "hashtags": ["three", "relevant", "hashtags"],
       "rationale": "one sentence on why this should perform, tied to the style memory"
     }
@@ -126,6 +149,11 @@ Write ${count} distinct slideshows. Respond with a JSON object of this exact sha
 }
 
 Use 5-6 slides per slideshow. Add linkSticker only when the link sticker domain is configured and it improves the visual CTA or context; 0-2 stickers per slideshow is usually enough. The linkSticker text must be exactly the configured link sticker domain, not generic CTA text and not a full URL. Choose a position that avoids the main centered caption.
+
+Hashtag rules:
+- Do not put hashtags in caption.
+- Put tags only in the hashtags array.
+- Hashtag array values must be bare words with no # prefix, for example "MachuPicchuTickets", not "#MachuPicchuTickets".
 
 Retention checker:
 - Slide 1 must be instantly clear: a viewer should understand the topic and stakes in under 1 second.
@@ -213,8 +241,8 @@ export async function generateSlideshows({ aiProvider = 'openrouter', keys, azur
     return {
       id: `q-${stamp}-${i}`,
       hook: s.hook || (s.slides && slideText(s.slides[0])) || '',
-      caption: s.caption || '',
-      hashtags: s.hashtags || [],
+      caption: cleanCaption(s.caption),
+      hashtags: cleanHashtags(s.hashtags),
       rationale: s.rationale || '',
       createdAt: new Date(stamp).toISOString(),
       ...(Object.keys(generationContext).length ? { generationContext } : {}),
@@ -275,7 +303,7 @@ Return ONLY JSON in this exact shape:
   "slides": [
     { "text": "slide text", "fontStyle": "bold | editorial | compact", "linkSticker": null }
   ],
-  "caption": "caption",
+  "caption": "caption without hashtags",
   "hashtags": ["tag"]
 }
 
@@ -283,6 +311,7 @@ Rules:
 - Keep 5-7 slides unless the task is adding a CTA.
 - Keep every slide around 8 words or fewer.
 - Preserve link stickers unless the CTA action needs one.
+- Do not put hashtags in caption.
 - Hashtags must not include #.`
 
   const parsed = await chatJSON({ aiProvider, keys, azureOpenAI, model, prompt })
@@ -303,7 +332,7 @@ Rules:
   })
   return {
     slides: nextSlides.length ? nextSlides : sourceSlides,
-    caption: typeof parsed.caption === 'string' ? parsed.caption : caption,
-    hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags.map(String) : hashtags,
+    caption: typeof parsed.caption === 'string' ? cleanCaption(parsed.caption) : cleanCaption(caption),
+    hashtags: Array.isArray(parsed.hashtags) ? cleanHashtags(parsed.hashtags) : cleanHashtags(hashtags),
   }
 }

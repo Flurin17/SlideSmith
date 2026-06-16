@@ -25,6 +25,7 @@ import { listModels, validateKey } from './openrouter.js'
 import { validateAzureOpenAI } from './azure-openai.js'
 import { listLibrary, listPacks, scrapePinterest, removeScraped, getScrapedFile } from './library.js'
 import { startImageTranscriptionJob, transcriptionStatus } from './transcribe.js'
+import { describeWebsite } from './website.js'
 import { logger } from './log.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -346,6 +347,19 @@ app.post('/api/ai/edit-slide', h(async (req, res) => {
     slides,
     caption: String(body.caption || ''),
     hashtags: Array.isArray(body.hashtags) ? body.hashtags.map(String) : [],
+  }))
+}))
+
+app.post('/api/brain/website-description', h(async (req, res) => {
+  const { keys, aiProvider, model, azureOpenAI } = getConfig()
+  const project = getActiveProject()
+  res.json(await describeWebsite({
+    aiProvider,
+    keys,
+    azureOpenAI,
+    model,
+    url: req.body?.url || project.brain?.linkUrl,
+    brain: { ...project.brain, ...(req.body?.brain || {}) },
   }))
 }))
 

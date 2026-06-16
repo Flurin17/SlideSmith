@@ -12,6 +12,7 @@ import { BrainView } from './views/BrainView';
 import { SettingsView } from './views/SettingsView';
 import { renderSlideshow } from './lib/render';
 import { displayLinkDomain } from './lib/linkSticker';
+import { formatPostCaption } from './lib/hashtags';
 import * as api from './lib/api';
 import type {
   AppConfig,
@@ -152,7 +153,7 @@ export default function App() {
     const slides = await renderSlideshow(scheduling, activeProject.brandKit);
     await api.schedule({
       id: scheduledId,
-      caption: `${scheduling.caption}${scheduling.hashtags.length ? ' ' + scheduling.hashtags.map((t) => `#${t}`).join(' ') : ''}`,
+      caption: formatPostCaption(scheduling.caption, scheduling.hashtags),
       slides,
       socialAccounts: opts.socialAccounts,
       scheduledAt: opts.scheduledAt,

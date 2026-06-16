@@ -156,6 +156,14 @@ export interface LearnFromWinnersResponse {
   sourcePostIds: string[];
 }
 
+export interface WebsiteDescriptionResponse {
+  url: string;
+  appName: string;
+  appDescription: string;
+  audience: string;
+  niche: string;
+}
+
 export interface ImageTranscriptionStatus {
   enabled: boolean;
   running: boolean;

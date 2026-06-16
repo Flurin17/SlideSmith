@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { SlidePreview } from './SlidePreview';
 import { getLibrary } from '../lib/api';
 import { LINK_STICKER_POSITIONS, LINK_STICKER_POSITION_LABELS } from '../lib/linkSticker';
+import { cleanCaption, cleanHashtags } from '../lib/hashtags';
 
 interface SlideshowEditorModalProps {
   slideshow: Slideshow;
@@ -100,12 +101,12 @@ export function SlideshowEditorModal({
         action,
         slideIndex: index,
         slides,
-        caption,
-        hashtags: hashtags.split(/[\s,]+/).map((t) => t.replace(/^#/, '')).filter(Boolean),
+        caption: cleanCaption(caption),
+        hashtags: cleanHashtags(hashtags.split(/[\s,]+/)),
       });
       setSlides(next.slides.map((s) => ({ ...s })));
-      if (next.caption !== undefined) setCaption(next.caption);
-      if (next.hashtags) setHashtags(next.hashtags.join(' '));
+      if (next.caption !== undefined) setCaption(cleanCaption(next.caption));
+      if (next.hashtags) setHashtags(cleanHashtags(next.hashtags).join(' '));
       setIndex((i) => Math.min(i, Math.max(0, next.slides.length - 1)));
     } catch (e) {
       setAiError(e instanceof Error ? e.message : String(e));
@@ -119,8 +120,8 @@ export function SlideshowEditorModal({
     try {
       await onSave({
         slides,
-        caption,
-        hashtags: hashtags.split(/[\s,]+/).map((t) => t.replace(/^#/, '')).filter(Boolean),
+        caption: cleanCaption(caption),
+        hashtags: cleanHashtags(hashtags.split(/[\s,]+/)),
       });
     } finally {
       setSaving(false);
