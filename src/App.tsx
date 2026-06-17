@@ -6,6 +6,7 @@ import { GenerateModal } from './components/GenerateModal';
 import { SlideshowEditorModal } from './components/SlideshowEditorModal';
 import { QueueView } from './views/QueueView';
 import { LibraryView } from './views/LibraryView';
+import { SlideshowLibraryView } from './views/SlideshowLibraryView';
 import { ScheduleView } from './views/ScheduleView';
 import { ResultsView } from './views/ResultsView';
 import { BrainView } from './views/BrainView';
@@ -155,6 +156,7 @@ export default function App() {
       id: scheduledId,
       caption: formatPostCaption(scheduling.caption, scheduling.hashtags),
       slides,
+      slideshow: scheduling,
       socialAccounts: opts.socialAccounts,
       scheduledAt: opts.scheduledAt,
       mode: opts.mode,
@@ -340,6 +342,7 @@ export default function App() {
             onFeedback={handleQueueFeedback}
           />
         )}
+        {activeView === 'slideshows' && <SlideshowLibraryView brandKit={activeProject.brandKit} />}
         {activeView === 'library' && <LibraryView hasApify={hasApify} />}
         {activeView === 'schedule' && <ScheduleView configured={hasPostbridge} />}
         {activeView === 'results' && <ResultsView configured={hasPostbridge} onBrainUpdated={syncLearnedBrain} />}

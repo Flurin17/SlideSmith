@@ -13,6 +13,8 @@ import { bundledPackNames } from './library.js'
 const DIR = process.env.SLIDESMITH_DIR || join(homedir(), '.slidesmith')
 const CONFIG_PATH = join(DIR, 'config.json')
 const QUEUE_PATH = join(DIR, 'queue.json')
+const ATTRIBUTIONS_PATH = join(DIR, 'attributions.json')
+const SLIDESHOWS_PATH = join(DIR, 'slideshows.json')
 
 const DEFAULT_BRAIN = {
   niche: '',
@@ -241,6 +243,185 @@ function removeQueueFor(projectId) {
   const m = readQueueMap()
   delete m[projectId]
   writeQueueMap(m)
+}
+
+// ── Attribution ledger (post-bridge post → source slideshow) ────────────────
+function readAttributionMap() {
+  const m = readJson(ATTRIBUTIONS_PATH, {})
+  return m && typeof m === 'object' && !Array.isArray(m) ? m : {}
+}
+function writeAttributionMap(m) {
+  writeJson(ATTRIBUTIONS_PATH, m)
+  return m
+}
+function cleanArray(value) {
+  return Array.isArray(value) ? value.map((v) => String(v || '').trim()).filter(Boolean) : []
+}
+function cleanGenerationContext(value) {
+  if (!value || typeof value !== 'object') return undefined
+  const out = {
+    ...(value.direction ? { direction: cleanText(value.direction, 500) } : {}),
+    ...(value.pillarName ? { pillarName: cleanText(value.pillarName, 240) } : {}),
+    ...(value.presetName ? { presetName: cleanText(value.presetName, 240) } : {}),
+  }
+  return Object.keys(out).length ? out : undefined
+}
+function snapshotSlide(slide, mediaId, index) {
+  return {
+    id: String(slide?.id || `slide-${index + 1}`),
+    text: cleanText(slide?.text, 220),
+    ...(slide?.imageUrl ? { imageUrl: String(slide.imageUrl).slice(0, 1200) } : {}),
+    ...(slide?.bgFrom ? { bgFrom: String(slide.bgFrom).slice(0, 16) } : {}),
+    ...(slide?.bgTo ? { bgTo: String(slide.bgTo).slice(0, 16) } : {}),
+    ...(slide?.fontStyle ? { fontStyle: String(slide.fontStyle).slice(0, 40) } : {}),
+    ...(slide?.linkSticker?.text
+      ? {
+          linkSticker: {
+            text: cleanText(slide.linkSticker.text, 80),
+            position: cleanText(slide.linkSticker.position, 40),
+            style: cleanText(slide.linkSticker.style, 40),
+          },
+        }
+      : {}),
+    ...(mediaId ? { mediaId: String(mediaId) } : {}),
+  }
+}
+
+// ── Slideshow library (all generated source carousels, per project) ──────────
+function readSlideshowMap() {
+  const m = readJson(SLIDESHOWS_PATH, {})
+  return m && typeof m === 'object' && !Array.isArray(m) ? m : {}
+}
+function writeSlideshowMap(m) {
+  writeJson(SLIDESHOWS_PATH, m)
+  return m
+}
+function snapshotSlideshow(slideshow, existing = {}, patch = {}) {
+  const now = new Date().toISOString()
+  const postBridgePostIds = Array.from(new Set([
+    ...cleanArray(existing.postBridgePostIds),
+    ...cleanArray(patch.postBridgePostIds),
+  ]))
+  const next = {
+    id: String(slideshow?.id || existing.id || ''),
+    hook: cleanText(slideshow?.hook ?? existing.hook, 220),
+    caption: cleanText(slideshow?.caption ?? existing.caption, 2200),
+    hashtags: cleanArray(slideshow?.hashtags ?? existing.hashtags),
+    slides: Array.isArray(slideshow?.slides ?? existing.slides)
+      ? (slideshow?.slides ?? existing.slides).slice(0, 35).map((slide, i) => snapshotSlide(slide, slide.mediaId, i))
+      : [],
+    createdAt: slideshow?.createdAt || existing.createdAt || now,
+    rationale: cleanText(slideshow?.rationale ?? existing.rationale, 600),
+    ...(cleanGenerationContext(slideshow?.generationContext ?? existing.generationContext)
+      ? { generationContext: cleanGenerationContext(slideshow?.generationContext ?? existing.generationContext) }
+      : {}),
+    libraryStatus: patch.libraryStatus || existing.libraryStatus || 'queued',
+    updatedAt: now,
+    ...(postBridgePostIds.length ? { postBridgePostIds } : {}),
+    ...(patch.scheduledAt !== undefined ? { scheduledAt: patch.scheduledAt } : existing.scheduledAt ? { scheduledAt: existing.scheduledAt } : {}),
+    ...(patch.publishedCaption || existing.publishedCaption
+      ? { publishedCaption: cleanText(patch.publishedCaption || existing.publishedCaption, 2200) }
+      : {}),
+  }
+  return next
+}
+export function getSlideshowLibrary(projectId) {
+  return readSlideshowMap()[projectId] || []
+}
+export function upsertSlideshowLibrary(projectId, slideshows, patch = {}) {
+  const m = readSlideshowMap()
+  const current = m[projectId] || []
+  const byId = new Map(current.map((item) => [item.id, item]))
+  const incoming = (Array.isArray(slideshows) ? slideshows : [slideshows]).filter((item) => item?.id)
+  const incomingIds = new Set(incoming.map((item) => item.id))
+  const updates = incoming.map((item) => snapshotSlideshow(item, byId.get(item.id), patch))
+  const existingUpdates = new Map(updates.filter((item) => byId.has(item.id)).map((item) => [item.id, item]))
+  const newUpdates = updates.filter((item) => !byId.has(item.id))
+  m[projectId] = [
+    ...newUpdates,
+    ...current.map((item) => existingUpdates.get(item.id) || item),
+  ].filter((item, index, list) => item?.id && list.findIndex((other) => other.id === item.id) === index)
+  writeSlideshowMap(m)
+  return m[projectId].filter((item) => !incomingIds.size || item)
+}
+export function updateSlideshowLibrary(projectId, id, patch = {}) {
+  const m = readSlideshowMap()
+  const current = m[projectId] || []
+  m[projectId] = current.map((item) =>
+    item.id === id
+      ? snapshotSlideshow({ ...item, ...patch }, item, {
+          libraryStatus: patch.libraryStatus || item.libraryStatus,
+          scheduledAt: patch.scheduledAt !== undefined ? patch.scheduledAt : item.scheduledAt,
+          postBridgePostIds: patch.postBridgePostIds,
+          publishedCaption: patch.publishedCaption,
+        })
+      : item
+  )
+  writeSlideshowMap(m)
+  return m[projectId]
+}
+export function markSlideshowLibraryStatus(projectId, id, patch = {}) {
+  const m = readSlideshowMap()
+  const current = m[projectId] || []
+  m[projectId] = current.map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          ...patch,
+          postBridgePostIds: Array.from(new Set([...cleanArray(item.postBridgePostIds), ...cleanArray(patch.postBridgePostIds)])),
+          updatedAt: new Date().toISOString(),
+        }
+      : item
+  )
+  writeSlideshowMap(m)
+  return m[projectId]
+}
+
+export function saveAttribution(record) {
+  const postBridgePostId = String(record?.postBridgePostId || '').trim()
+  if (!postBridgePostId) return null
+  const slideshow = record.slideshow || {}
+  const mediaIds = cleanArray(record.mediaIds)
+  const entry = {
+    id: `attr-${Date.now()}-${Math.round(Math.random() * 1e6)}`,
+    projectId: String(record.projectId || ''),
+    slideshowId: String(record.slideshowId || slideshow.id || ''),
+    postBridgePostId,
+    postBridgeMediaIds: mediaIds,
+    socialAccounts: Array.isArray(record.socialAccounts) ? record.socialAccounts.map(Number).filter(Number.isFinite) : [],
+    mode: record.mode === 'schedule' ? 'schedule' : 'draft',
+    scheduledAt: record.scheduledAt || null,
+    createdAt: new Date().toISOString(),
+    publishedCaption: cleanText(record.caption, 2200),
+    hook: cleanText(slideshow.hook, 220),
+    caption: cleanText(slideshow.caption, 2200),
+    hashtags: cleanArray(slideshow.hashtags),
+    rationale: cleanText(slideshow.rationale, 600),
+    generationContext: cleanGenerationContext(slideshow.generationContext),
+    slides: Array.isArray(slideshow.slides)
+      ? slideshow.slides.slice(0, 35).map((slide, i) => snapshotSlide(slide, mediaIds[i], i))
+      : [],
+  }
+  if (!entry.generationContext || !Object.keys(entry.generationContext).length) delete entry.generationContext
+  const m = readAttributionMap()
+  m[postBridgePostId] = entry
+  writeAttributionMap(m)
+  if (entry.projectId && entry.slideshowId) {
+    markSlideshowLibraryStatus(entry.projectId, entry.slideshowId, {
+      libraryStatus: entry.mode === 'schedule' ? 'scheduled' : 'draft',
+      scheduledAt: entry.scheduledAt,
+      postBridgePostIds: [postBridgePostId],
+      publishedCaption: entry.publishedCaption,
+    })
+  }
+  return entry
+}
+export function getAttribution(postBridgePostId) {
+  return readAttributionMap()[String(postBridgePostId || '')] || null
+}
+export function listAttributions(projectId) {
+  const records = Object.values(readAttributionMap())
+  return projectId ? records.filter((record) => record.projectId === projectId) : records
 }
 
 export const CONFIG_DIR = DIR

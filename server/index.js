@@ -17,6 +17,12 @@ import {
   setQueue,
   addToQueue,
   removeFromQueue,
+  getSlideshowLibrary,
+  upsertSlideshowLibrary,
+  updateSlideshowLibrary,
+  markSlideshowLibraryStatus,
+  saveAttribution,
+  getAttribution,
   CONFIG_DIR,
 } from './store.js'
 import { listAccounts, listPosts, listAnalytics, syncAnalytics, uploadMedia, createPost } from './postbridge.js'
@@ -57,7 +63,15 @@ const compactNumber = (n) => {
 }
 
 const cleanPostText = (a, max = 180) => {
-  const raw = String(a.video_description || a.description || a.caption || '').replace(/\s+/g, ' ').trim()
+  const sourceSlides = Array.isArray(a.attribution?.slides)
+    ? a.attribution.slides.map((s) => s.text).filter(Boolean).join(' / ')
+    : ''
+  const raw = String(a.attribution?.hook || sourceSlides || a.video_description || a.description || a.caption || '').replace(/\s+/g, ' ').trim()
+  return raw.length > max ? `${raw.slice(0, max - 1).trim()}…` : raw
+}
+
+const compactPostText = (value, max = 180) => {
+  const raw = String(value || '').replace(/\s+/g, ' ').trim()
   return raw.length > max ? `${raw.slice(0, max - 1).trim()}…` : raw
 }
 
@@ -106,6 +120,27 @@ function updateJob(job, patch) {
   return publicJob(job)
 }
 
+function attributionCandidates(raw) {
+  const ids = [
+    raw?.post_id,
+    raw?.postId,
+    raw?.post_bridge_post_id,
+    raw?.postBridgePostId,
+    raw?.post?.id,
+    raw?.post?.post_id,
+    raw?.post?.postId,
+    raw?.id,
+  ]
+  return ids.map((id) => String(id || '').trim()).filter(Boolean)
+}
+
+function attachAttribution(rows) {
+  return (rows || []).map((row) => {
+    const attribution = attributionCandidates(row).map(getAttribution).find(Boolean)
+    return attribution ? { ...row, attribution } : row
+  })
+}
+
 async function generateForActiveProject(body, onProgress = () => {}) {
   const { keys, aiProvider, model, azureOpenAI } = getConfig()
   const project = getActiveProject()
@@ -137,14 +172,18 @@ async function generateForActiveProject(body, onProgress = () => {}) {
     let assigned = 0
     for (const show of slideshows) {
       const used = new Set()
+      const pickFresh = () => {
+        const fresh = pool.filter((i) => !used.has(i.url))
+        return (fresh.length ? fresh : pool)[Math.floor(Math.random() * (fresh.length || pool.length))]
+      }
       for (const slide of show.slides) {
-        if (project.aiCreativeControl && slide.imageUrl) {
+        // AI can over-select one imageId for every slide. Keep its first
+        // choice, but replace duplicates so the carousel does not look cloned.
+        if (project.aiCreativeControl && slide.imageUrl && !used.has(slide.imageUrl)) {
           used.add(slide.imageUrl)
           continue
         }
-        // Prefer an unused image within this slideshow for visual variety.
-        const fresh = pool.filter((i) => !used.has(i.url))
-        const pick = (fresh.length ? fresh : pool)[Math.floor(Math.random() * (fresh.length || pool.length))]
+        const pick = pickFresh()
         slide.imageUrl = pick.url
         used.add(pick.url)
       }
@@ -154,6 +193,7 @@ async function generateForActiveProject(body, onProgress = () => {}) {
   }
 
   onProgress({ phase: 'saving', done: 0, total: 1, message: 'Saving to Queue…' })
+  upsertSlideshowLibrary(project.id, slideshows, { libraryStatus: 'queued' })
   addToQueue(project.id, slideshows)
   onProgress({ phase: 'done', done: 1, total: 1, message: `Added ${slideshows.length} slideshow${slideshows.length === 1 ? '' : 's'} to Queue` })
   return slideshows
@@ -163,10 +203,14 @@ function inferWinnerPatterns(posts) {
   const patterns = new Set()
   const platforms = new Set()
   for (const post of posts) {
-    const text = cleanPostText(post, 500)
+    const slideText = Array.isArray(post.attribution?.slides)
+      ? post.attribution.slides.map((s) => s.text).filter(Boolean).join(' ')
+      : ''
+    const text = [cleanPostText(post, 500), slideText].filter(Boolean).join(' ')
     const lower = text.toLowerCase()
     const firstLine = text.split(/[.!?\n]/)[0]?.trim() || text
     if (post.platform) platforms.add(String(post.platform))
+    if (post.attribution?.slides?.length) patterns.add('Use the full carousel sequence when judging winners, not only the public caption.')
     if (/\?/.test(firstLine)) patterns.add('Question-led hooks are getting attention.')
     if (/^\d+|\b\d+\b/.test(firstLine)) patterns.add('Numbered or specific hooks are worth repeating.')
     if (/\b(stop|never|mistake|wrong|avoid|don'?t)\b/i.test(firstLine)) patterns.add('Contrarian/problem-avoidance openings are performing.')
@@ -176,6 +220,37 @@ function inferWinnerPatterns(posts) {
   }
   if (platforms.size) patterns.add(`Winning references came from ${Array.from(platforms).join(', ')}; keep platform-native phrasing.`)
   return patterns.size ? Array.from(patterns) : ['Model the hooks, topic angles, and caption tone from these winners.']
+}
+
+function carouselSourceSummary(post) {
+  const attr = post.attribution
+  if (!attr?.slides?.length) {
+    const fallback = cleanPostText(post, 260) || '(no source carousel saved)'
+    return [`Source unavailable; post-bridge caption/reference: "${fallback}"`]
+  }
+
+  const lines = []
+  lines.push(`Source slideshow: ${attr.slideshowId}${attr.postBridgePostId ? ` → post-bridge ${attr.postBridgePostId}` : ''}.`)
+  lines.push(`Hook: "${compactPostText(attr.hook, 140) || '(none)'}"`)
+  lines.push(`Slides: ${attr.slides.map((slide, index) => {
+    const extras = [
+      slide.fontStyle ? `font ${slide.fontStyle}` : '',
+      slide.linkSticker?.text ? `link sticker ${slide.linkSticker.text}` : '',
+      slide.imageUrl ? 'image background' : slide.bgFrom || slide.bgTo ? 'gradient background' : '',
+    ].filter(Boolean)
+    return `${index + 1}. "${compactPostText(slide.text, 90)}"${extras.length ? ` (${extras.join(', ')})` : ''}`
+  }).join(' / ')}`)
+  if (attr.caption || attr.publishedCaption) lines.push(`Caption: "${compactPostText(attr.caption || attr.publishedCaption, 220)}"`)
+  if (attr.hashtags?.length) lines.push(`Hashtags: ${attr.hashtags.map((tag) => `#${tag}`).join(' ')}`)
+  if (attr.rationale) lines.push(`Original rationale: ${compactPostText(attr.rationale, 220)}`)
+  if (attr.generationContext?.pillarName || attr.generationContext?.presetName || attr.generationContext?.direction) {
+    lines.push(`Generation context: ${[
+      attr.generationContext.pillarName ? `pillar "${compactPostText(attr.generationContext.pillarName, 90)}"` : '',
+      attr.generationContext.presetName ? `preset "${compactPostText(attr.generationContext.presetName, 90)}"` : '',
+      attr.generationContext.direction ? `direction "${compactPostText(attr.generationContext.direction, 160)}"` : '',
+    ].filter(Boolean).join('; ')}`)
+  }
+  return lines
 }
 
 function buildWinnerLearning(posts) {
@@ -192,8 +267,10 @@ function buildWinnerLearning(posts) {
     const comments = Number(post.comment_count || post.comments || 0)
     const shares = Number(post.share_count || post.shares || 0)
     const rate = engagementRate(post).toFixed(1)
-    const text = cleanPostText(post) || '(no caption available)'
-    lines.push(`- #${i + 1} ${post.platform || 'post'}: "${text}" (${compactNumber(views)} views, ${compactNumber(likes + comments + shares)} interactions, ${rate}% engagement; shares ${compactNumber(shares)}).`)
+    lines.push(`- #${i + 1} ${post.platform || 'post'} performance: ${compactNumber(views)} views, ${compactNumber(likes + comments + shares)} interactions, ${rate}% engagement; shares ${compactNumber(shares)}.`)
+    for (const sourceLine of carouselSourceSummary(post)) {
+      lines.push(`  ${sourceLine}`)
+    }
   })
   return lines.join('\n')
 }
@@ -268,6 +345,13 @@ app.get('/api/models', h(async (_req, res) => res.json(await listModels())))
 app.get('/api/queue', h(async (_req, res) => {
   const project = getActiveProject()
   res.json(getQueue(project.id))
+}))
+
+app.get('/api/slideshows', h(async (_req, res) => {
+  const project = getActiveProject()
+  const queued = getQueue(project.id)
+  if (queued.length) upsertSlideshowLibrary(project.id, queued, { libraryStatus: 'queued' })
+  res.json(getSlideshowLibrary(project.id))
 }))
 
 app.post('/api/generate', h(async (req, res) => {
@@ -363,9 +447,13 @@ app.post('/api/brain/website-description', h(async (req, res) => {
   }))
 }))
 
-app.delete('/api/queue/:id', h(async (req, res) =>
-  res.json(removeFromQueue(getActiveProject().id, req.params.id))
-))
+app.delete('/api/queue/:id', h(async (req, res) => {
+  const project = getActiveProject()
+  const sourceSlideshow = getQueue(project.id).find((show) => show.id === req.params.id)
+  if (sourceSlideshow) upsertSlideshowLibrary(project.id, sourceSlideshow, { libraryStatus: 'rejected' })
+  markSlideshowLibraryStatus(project.id, req.params.id, { libraryStatus: 'rejected' })
+  res.json(removeFromQueue(project.id, req.params.id))
+}))
 
 // Edit a queued slideshow: caption, hashtags, hook, and/or per-slide text+image.
 app.put('/api/queue/:id', h(async (req, res) => {
@@ -376,6 +464,8 @@ app.put('/api/queue/:id', h(async (req, res) => {
     if (s.id !== req.params.id) return s
     const merged = { ...s }
     for (const k of allowed) if (patch[k] !== undefined) merged[k] = patch[k]
+    upsertSlideshowLibrary(pid, merged, { libraryStatus: 'queued' })
+    updateSlideshowLibrary(pid, req.params.id, merged)
     return merged
   })
   res.json(setQueue(pid, next))
@@ -418,12 +508,12 @@ app.get('/api/accounts', h(async (_req, res) => {
 
 app.get('/api/posts', h(async (_req, res) => {
   const { keys } = getConfig()
-  res.json(await listPosts(keys.postbridge))
+  res.json(attachAttribution(await listPosts(keys.postbridge)))
 }))
 
 app.get('/api/results', h(async (_req, res) => {
   const { keys } = getConfig()
-  res.json(await listAnalytics(keys.postbridge))
+  res.json(attachAttribution(await listAnalytics(keys.postbridge)))
 }))
 
 // Pull fresh metrics from the platforms, then hand back the updated analytics.
@@ -432,7 +522,7 @@ app.get('/api/results', h(async (_req, res) => {
 app.post('/api/results/sync', h(async (_req, res) => {
   const { keys } = getConfig()
   try { await syncAnalytics(keys.postbridge) } catch (e) { console.warn('[results] sync skipped:', e.message) }
-  res.json(await listAnalytics(keys.postbridge))
+  res.json(attachAttribution(await listAnalytics(keys.postbridge)))
 }))
 
 // Build a concise Brain update from selected high-performing analytics.
@@ -441,7 +531,7 @@ app.post('/api/results/sync', h(async (_req, res) => {
 app.post('/api/results/learn', h(async (req, res) => {
   const { keys } = getConfig()
   const project = getActiveProject()
-  const analytics = await listAnalytics(keys.postbridge)
+  const analytics = attachAttribution(await listAnalytics(keys.postbridge))
   const winners = selectLearningPosts(analytics, req.body?.postIds)
   if (!winners.length) throw new Error('Pick at least one post with analytics to learn from.')
 
@@ -474,6 +564,11 @@ app.post('/api/results/learn', h(async (req, res) => {
 app.post('/api/schedule', h(async (req, res) => {
   const { keys } = getConfig()
   const { id, caption, slides, socialAccounts, scheduledAt, mode } = req.body || {}
+  const project = getActiveProject()
+  const sourceSlideshow =
+    req.body?.slideshow && typeof req.body.slideshow === 'object'
+      ? req.body.slideshow
+      : getQueue(project.id).find((show) => show.id === id)
   if (!socialAccounts?.length) throw new Error('Pick at least one social account.')
   if (!slides?.length) throw new Error('No slide images to upload.')
 
@@ -506,7 +601,23 @@ app.post('/api/schedule', h(async (req, res) => {
     isDraft: mode !== 'schedule', // "save as draft" leaves it unprocessed in post-bridge
   })
 
-  if (id) removeFromQueue(getActiveProject().id, id)
+  const postBridgePostId = attributionCandidates(post)[0]
+  if (postBridgePostId && sourceSlideshow) {
+    upsertSlideshowLibrary(project.id, sourceSlideshow, { libraryStatus: mode === 'schedule' ? 'scheduled' : 'draft' })
+    saveAttribution({
+      projectId: project.id,
+      slideshowId: id,
+      postBridgePostId,
+      mediaIds,
+      caption,
+      socialAccounts,
+      scheduledAt: mode === 'schedule' ? scheduledAt : null,
+      mode,
+      slideshow: sourceSlideshow,
+    })
+  }
+
+  if (id) removeFromQueue(project.id, id)
   schedLog.ok(`Done — ${mode === 'schedule' ? 'scheduled' : 'saved as draft'}`)
   res.json(post)
 }))

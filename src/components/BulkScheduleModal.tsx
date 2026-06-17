@@ -100,6 +100,7 @@ export function BulkScheduleModal({ slideshows, brandKit, accounts, defaults, on
             id: show.id,
             caption,
             slides,
+            slideshow: show,
             socialAccounts: selectedAccounts,
             scheduledAt: mode === 'schedule' ? new Date(startMs + i * stepMs).toISOString() : null,
             mode,

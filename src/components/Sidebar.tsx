@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutGrid, CalendarClock, LineChart, Brain, Settings, ChevronsUpDown, Plus, Check, Images } from 'lucide-react';
+import { LayoutGrid, CalendarClock, LineChart, Brain, Settings, ChevronsUpDown, Plus, Check, Images, Archive } from 'lucide-react';
 import type { ViewKey, Project } from '../types';
 
 interface SidebarProps {
@@ -15,7 +15,8 @@ interface SidebarProps {
 
 const nav: { key: ViewKey; label: string; icon: typeof LayoutGrid; badge?: 'queue' | 'scheduled' }[] = [
   { key: 'queue', label: 'Queue', icon: LayoutGrid, badge: 'queue' },
-  { key: 'library', label: 'Library', icon: Images },
+  { key: 'slideshows', label: 'Slideshows', icon: Archive },
+  { key: 'library', label: 'Images', icon: Images },
   { key: 'schedule', label: 'Schedule', icon: CalendarClock, badge: 'scheduled' },
   { key: 'results', label: 'Results', icon: LineChart },
   { key: 'brain', label: 'Brain', icon: Brain },

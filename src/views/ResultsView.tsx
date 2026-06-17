@@ -54,6 +54,10 @@ function performanceScore(result: PostResult) {
   return result.views + result.likes * 8 + result.comments * 18 + result.shares * 24;
 }
 
+function resultTitle(result: PostResult) {
+  return result.attribution?.hook || result.description || 'No caption available';
+}
+
 function rankResults(results: PostResult[]) {
   return [...results].sort((a, b) => performanceScore(b) - performanceScore(a));
 }
@@ -328,8 +332,13 @@ function TopPerformer({ result }: { result: PostResult }) {
         <Cover result={result} size="lg" />
         <div className="min-w-0 flex-1">
           <h3 className="text-[15px] font-semibold text-ink leading-snug line-clamp-3">
-            {result.description || 'No caption available'}
+            {resultTitle(result)}
           </h3>
+          {result.attribution && (
+            <div className="mt-2 text-[11px] text-ink-5">
+              {result.attribution.slides.length} slide source saved · {result.attribution.slideshowId}
+            </div>
+          )}
           <div className="grid grid-cols-4 gap-2 mt-4 text-[12px] text-ink-4">
             <Metric icon={Eye} value={formatNumber(result.views)} label="views" />
             <Metric icon={Heart} value={formatNumber(result.likes)} label="likes" />
@@ -443,7 +452,7 @@ function LearnPanel({
               <span className="text-[10px] text-ink-5">{formatPercent(engagementRate(result))}</span>
             </div>
             <div className="text-[12px] font-semibold text-ink line-clamp-2 min-h-[32px]">
-              {result.description || 'No caption available'}
+              {resultTitle(result)}
             </div>
             <div className="text-[11px] text-ink-5 mt-2">
               {formatNumber(result.views)} views · {formatNumber(interactions(result))} interactions
@@ -506,11 +515,18 @@ function ResultCard({
             {selected ? 'Learning' : 'Learn'}
           </button>
         </div>
-        {result.description && (
-          <h3 className="text-[14px] font-semibold text-ink leading-snug mb-2 line-clamp-2">
-            {result.description}
-          </h3>
-        )}
+        <h3 className="text-[14px] font-semibold text-ink leading-snug mb-2 line-clamp-2">
+          {resultTitle(result)}
+        </h3>
+        {result.attribution?.slides?.length ? (
+          <div className="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            {result.attribution.slides.slice(0, 4).map((slide, i) => (
+              <div key={slide.id || i} className="rounded-md bg-surface border border-line px-2 py-1.5 text-[11px] text-ink-4 truncate">
+                {i + 1}. {slide.text || '(blank slide)'}
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] text-ink-4">
           <Metric icon={Eye} value={formatNumber(result.views)} label="views" />
           <Metric icon={Heart} value={formatNumber(result.likes)} label="likes" />
@@ -522,6 +538,9 @@ function ResultCard({
               <ExternalLink size={11} />
               view post
             </a>
+          )}
+          {result.attribution && (
+            <span className="text-ink-5">source {result.attribution.slideshowId}</span>
           )}
         </div>
       </div>

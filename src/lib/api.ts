@@ -66,6 +66,8 @@ export const getModels = () => req<ModelOption[]>('/models');
 
 export const getQueue = () => req<Slideshow[]>('/queue');
 
+export const getSlideshowLibrary = () => req<Slideshow[]>('/slideshows');
+
 export const generate = (count = 4, packs?: string[], direction = '', pillar = '', preset = '') =>
   req<Slideshow[]>('/generate', { method: 'POST', body: JSON.stringify({ count, packs, direction, pillar, preset }) });
 
@@ -134,6 +136,7 @@ export interface SchedulePayload {
   id: string;
   caption: string;
   slides: string[]; // PNG data URLs
+  slideshow?: Slideshow;
   socialAccounts: number[];
   scheduledAt: string | null;
   mode: 'draft' | 'schedule';
@@ -163,6 +166,7 @@ export async function getScheduledPosts(): Promise<ScheduledPost[]> {
       : [],
     socialAccounts: (p.social_accounts as number[]) || [],
     isDraft: !!p.is_draft,
+    attribution: (p.attribution as ScheduledPost['attribution']) || undefined,
   }));
 }
 
@@ -178,6 +182,7 @@ function mapResult(a: Record<string, unknown>): PostResult {
     shareUrl: (a.share_url as string) || null,
     description: (a.video_description as string) || null,
     lastSyncedAt: (a.last_synced_at as string) || null,
+    attribution: (a.attribution as PostResult['attribution']) || undefined,
   };
 }
 

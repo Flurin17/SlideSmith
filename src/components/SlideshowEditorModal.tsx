@@ -83,7 +83,10 @@ export function SlideshowEditorModal({
   const shuffleBackgrounds = () => {
     const pool = filtered;
     if (!pool.length) return;
-    setSlides((prev) => prev.map((s) => ({ ...s, imageUrl: pool[Math.floor(Math.random() * pool.length)].url })));
+    setSlides((prev) => {
+      const shuffled = [...pool].sort(() => Math.random() - 0.5);
+      return prev.map((s, i) => ({ ...s, imageUrl: (shuffled[i % shuffled.length] || pool[0]).url }));
+    });
   };
 
   const deleteSlide = () => {

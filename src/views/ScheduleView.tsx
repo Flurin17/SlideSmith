@@ -157,7 +157,14 @@ function ScheduledRow({ post }: { post: ScheduledPost }) {
         ))}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[12px] text-ink-4 truncate">{post.caption || '(no caption)'}</div>
+        <div className="text-[12px] font-medium text-ink truncate">
+          {post.attribution?.hook || post.caption || '(no caption)'}
+        </div>
+        {post.attribution && (
+          <div className="text-[11px] text-ink-6 truncate mt-0.5">
+            {post.attribution.slides.length} slides · source {post.attribution.slideshowId}
+          </div>
+        )}
       </div>
     </div>
   );

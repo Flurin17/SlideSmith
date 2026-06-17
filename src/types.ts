@@ -1,4 +1,4 @@
-export type ViewKey = 'queue' | 'library' | 'schedule' | 'results' | 'brain' | 'settings';
+export type ViewKey = 'queue' | 'slideshows' | 'library' | 'schedule' | 'results' | 'brain' | 'settings';
 
 export type LinkStickerPosition =
   | 'top-left'
@@ -42,6 +42,41 @@ export interface Slideshow {
     pillarName?: string;
     presetName?: string;
   };
+  libraryStatus?: 'queued' | 'scheduled' | 'draft' | 'rejected';
+  updatedAt?: string;
+  postBridgePostIds?: string[];
+  scheduledAt?: string | null;
+  publishedCaption?: string;
+}
+
+export interface ScheduledSlideAttribution {
+  id: string;
+  text: string;
+  imageUrl?: string;
+  bgFrom?: string;
+  bgTo?: string;
+  linkSticker?: LinkSticker;
+  fontStyle?: BrandFontStyle;
+  mediaId?: string;
+}
+
+export interface SlideshowAttribution {
+  id: string;
+  projectId: string;
+  slideshowId: string;
+  postBridgePostId: string;
+  postBridgeMediaIds: string[];
+  socialAccounts: number[];
+  mode: 'draft' | 'schedule';
+  scheduledAt: string | null;
+  createdAt: string;
+  publishedCaption: string;
+  hook: string;
+  caption: string;
+  hashtags: string[];
+  rationale: string;
+  generationContext?: Slideshow['generationContext'];
+  slides: ScheduledSlideAttribution[];
 }
 
 export interface BrainState {
@@ -134,6 +169,7 @@ export interface ScheduledPost {
   mediaUrls: string[];
   socialAccounts: number[];
   isDraft: boolean;
+  attribution?: SlideshowAttribution;
 }
 
 export interface PostResult {
@@ -147,6 +183,7 @@ export interface PostResult {
   shareUrl: string | null;
   description: string | null;
   lastSyncedAt: string | null;
+  attribution?: SlideshowAttribution;
 }
 
 export interface LearnFromWinnersResponse {
